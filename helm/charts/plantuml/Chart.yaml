@@ -1,0 +1,8 @@
+apiVersion: v2
+name: plantuml
+description: Generate diagrams from textual description.
+type: application
+version: 0.0.1
+appVersion: "latest"
+sources:
+- https://github.com/plantuml/plantuml-server
