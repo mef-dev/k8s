@@ -3,7 +3,7 @@ entries:
   api:
   - apiVersion: v2
     appVersion: latest
-    created: "2022-12-14T18:24:58.646228381+02:00"
+    created: "2022-12-14T18:35:21.013583557+02:00"
     description: The API is a backend stateless element of serverless MEF.DEV openAPI
       platform.
     digest: 6044300b37270c30a1f1e21182f2370b10cc66d407a74c2f43ba68215d5c5442
@@ -12,12 +12,12 @@ entries:
     - https://github.com/mef-dev/k8s/tree/dev/helm/api
     type: application
     urls:
-    - https://raw.githubusercontent.com/mef-dev/k8s/api-0.0.1.tgz
+    - https://github.com/mef-dev/k8s/dev/api-0.0.1.tgz
     version: 0.0.1
   apps:
   - apiVersion: v2
     appVersion: latest
-    created: "2022-12-14T18:24:58.646722609+02:00"
+    created: "2022-12-14T18:35:21.014069659+02:00"
     description: The APP is web frontend (GUI) element of serverless MEF.DEV openAPI
       platform.
     digest: 026d02ed564c6f9e2e9d08281caeaa9b0e904f71c6b1903ceac5a244743d19c8
@@ -26,12 +26,12 @@ entries:
     - https://github.com/mef-dev/k8s/tree/dev/helm/apps
     type: application
     urls:
-    - https://raw.githubusercontent.com/mef-dev/k8s/apps-0.0.1.tgz
+    - https://github.com/mef-dev/k8s/dev/apps-0.0.1.tgz
     version: 0.0.1
   autodoc:
   - apiVersion: v2
     appVersion: latest
-    created: "2022-12-14T18:24:58.647353454+02:00"
+    created: "2022-12-14T18:35:21.014732519+02:00"
     description: The AUTODOC is a backend statefull element of serverless MEF.DEV
       openAPI platform.
     digest: 3b07450f26aece754faae0a45ecb4b7e379c5c2b5ec5e2258578c1aaa1c88d3d
@@ -40,12 +40,12 @@ entries:
     - https://github.com/mef-dev/k8s/tree/dev/helm/autodoc
     type: application
     urls:
-    - https://raw.githubusercontent.com/mef-dev/k8s/autodoc-0.0.1.tgz
+    - https://github.com/mef-dev/k8s/dev/autodoc-0.0.1.tgz
     version: 0.0.1
   mssql:
   - apiVersion: v2
     appVersion: latest
-    created: "2022-12-14T18:24:58.648219844+02:00"
+    created: "2022-12-14T18:35:21.015616049+02:00"
     description: The MSSQL is a database container of serverless MEF.DEV openAPI platform.
     digest: a686aeac5eb60ca72bc63aa1a435f381f11ae9f976417f72fb02ad32e162e947
     name: mssql
@@ -53,12 +53,12 @@ entries:
     - https://github.com/mef-dev/k8s/tree/dev/helm/mssql
     type: application
     urls:
-    - https://raw.githubusercontent.com/mef-dev/k8s/mssql-0.0.1.tgz
+    - https://github.com/mef-dev/k8s/dev/mssql-0.0.1.tgz
     version: 0.0.1
   plantuml:
   - apiVersion: v2
     appVersion: latest
-    created: "2022-12-14T18:24:58.648911004+02:00"
+    created: "2022-12-14T18:35:21.016230523+02:00"
     description: Generate diagrams from textual description.
     digest: aeb1e9904fb95b6638549add71ac179a400c989f7887d1ac6855aa54acd67ad3
     name: plantuml
@@ -66,12 +66,12 @@ entries:
     - https://github.com/plantuml/plantuml-server
     type: application
     urls:
-    - https://raw.githubusercontent.com/mef-dev/k8s/plantuml-0.0.1.tgz
+    - https://github.com/mef-dev/k8s/dev/plantuml-0.0.1.tgz
     version: 0.0.1
   servicehost:
   - apiVersion: v2
     appVersion: latest
-    created: "2022-12-14T18:24:58.64951737+02:00"
+    created: "2022-12-14T18:35:21.016891462+02:00"
     description: The SERVICEHOST is a backend statefull element of serverless MEF.DEV
       openAPI platform.
     digest: 18dd0aa160e50a5fe06fc27829da4302ab634044ce9fe01d3879f87b6a28aeac
@@ -80,6 +80,6 @@ entries:
     - https://github.com/mef-dev/k8s/tree/dev/helm/servicehost
     type: application
     urls:
-    - https://raw.githubusercontent.com/mef-dev/k8s/servicehost-0.0.1.tgz
+    - https://github.com/mef-dev/k8s/dev/servicehost-0.0.1.tgz
     version: 0.0.1
-generated: "2022-12-14T18:24:58.645611406+02:00"
+generated: "2022-12-14T18:35:21.012967692+02:00"
