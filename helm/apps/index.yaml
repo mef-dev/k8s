@@ -1,0 +1,17 @@
+apiVersion: v1
+entries:
+  apps:
+  - apiVersion: v2
+    appVersion: latest
+    created: "2022-12-14T17:04:45.369509313+02:00"
+    description: The APP is web frontend (GUI) element of serverless MEF.DEV openAPI
+      platform.
+    digest: 5e2616131d29dcbe92eca2b8065403be732b571fe3042df8aad57a1fc428721d
+    name: apps
+    sources:
+    - https://github.com/mef-dev/k8s/tree/dev/helm/apps
+    type: application
+    urls:
+    - https://github.com/mef-dev/k8s/tree/dev/helm/apps/apps-0.0.1.tgz
+    version: 0.0.1
+generated: "2022-12-14T17:04:45.368829107+02:00"
