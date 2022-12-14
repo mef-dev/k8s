@@ -1,8 +1,7 @@
 ### Clone Repository ###
-1) git clone https://github.com/mef-dev/k8s.git
-2) cd k8s/helm/servicehost
+git clone https://github.com/mef-dev/k8s.git
 ### Install ###
-helm upgrade --install servicehost . --values values.yaml --namespace mef-dev --create-namespace
+helm upgrade --install servicehost k8s/helm/servicehost/ --values k8s/helm/servicehost/values.yaml --namespace mef-dev --create-namespace
 ### Unistall ###
 helm uninstall servicehost --namespace mef-dev
 

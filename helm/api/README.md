@@ -1,7 +1,6 @@
 ### Clone Repository ###
-1) git clone https://github.com/mef-dev/k8s.git
-2) cd k8s/helm/api/
+git clone https://github.com/mef-dev/k8s.git
 ### Install ###
-helm upgrade --install api . --values values.yaml --namespace mef-dev --create-namespace
+helm upgrade --install api k8s/helm/api/ --values k8s/helm/api/values.yaml --namespace mef-dev --create-namespace
 ### Unistall ###
 helm uninstall api --namespace mef-dev
