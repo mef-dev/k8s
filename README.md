@@ -31,7 +31,7 @@ helm install apps mef-dev/apps --namespace mef-dev
 helm install api mef-dev/api --namespace mef-dev
 helm install autodoc mef-dev/autodoc --namespace mef-dev
 helm install servicehost mef-dev/servicehost --namespace mef-dev
-helm install platuml mef-dev/plantuml --namespace mef-dev
+helm install plantuml mef-dev/plantuml --namespace mef-dev
 ```
 Or
 ```
