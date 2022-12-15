@@ -67,17 +67,17 @@ service/platuml-plantuml   LoadBalancer   10.43.152.190   192.168.50.12   85:311
 
 
 ### After running the pod, you can use the following ports
-1) http://localhost:81
+1) http://$SERVICE_IP:81
 The APP is web frontend (GUI) element of serverless MEF.DEV openAPI platform.
-2) http://localhost:82
+2) http://$SERVICE_IP:82
 The API is a backend stateless element of serverless MEF.DEV openAPI platform.
-3) http://localhost:83
+3) http://$SERVICE_IP:83
 The AUTODOC is a backend statefull element of serverless MEF.DEV openAPI platform.
-4) http://localhost:84
+4) http://$SERVICE_IP:84
 The SERVICEHOST is a backend statefull element of serverless MEF.DEV openAPI platform.
-5) http://localhost:85
+5) http://$SERVICE_IP:85
 PlantUML is an open-source tool allowing users to create diagrams from a plain text language.
-6) mssql - localhost:1433
+6) mssql - $SERVICE_IP:1433
 
 ### Helm uninstall app
 ```
