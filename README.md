@@ -62,7 +62,7 @@ service/apps               LoadBalancer   10.43.14.151    192.168.50.12   81:301
 service/api                LoadBalancer   10.43.12.43     192.168.50.12   82:30753/TCP     5m22s
 service/autodoc            LoadBalancer   10.43.120.168   192.168.50.12   83:30488/TCP     5m16s
 service/servicehost        LoadBalancer   10.43.7.94      192.168.50.12   84:32274/TCP     5m9s
-service/platuml-plantuml   LoadBalancer   10.43.152.190   192.168.50.12   85:31176/TCP     5m2s
+service/plantuml-plantuml   LoadBalancer   10.43.152.190   192.168.50.12   85:31176/TCP     5m2s
 ```
 
 
