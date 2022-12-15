@@ -54,7 +54,7 @@ pod/apps-7cfd95c584-gg7d4               1/1     Running   0          5m29s
 pod/api-668f59687d-7rvxn                1/1     Running   0          5m22s
 pod/autodoc-6f7d6cfdb9-9b5nr            1/1     Running   0          5m16s
 pod/servicehost-6d85d848b-7txdw         1/1     Running   0          5m9s
-pod/plantuml-plantuml-544cd6544b-w2pb6   1/1     Running   0          5m2s
+pod/plantuml-plantuml-544cd6544b-w2pb6  1/1     Running   0          5m2s
 
 NAME                       TYPE           CLUSTER-IP      EXTERNAL-IP     PORT(S)          AGE
 service/mssql              LoadBalancer   10.43.213.10    192.168.50.12   1433:32091/TCP   7m39s
