@@ -25,6 +25,7 @@ helm repo add mef-dev https://raw.githubusercontent.com/mef-dev/k8s/dev
 ```
 helm install app
 ```
+kubectl create namespace mef-dev
 helm install mssql mef-dev/mssql --namespace mef-dev
 helm install apps mef-dev/apps --namespace mef-dev
 helm install api mef-dev/api --namespace mef-dev
@@ -43,6 +44,40 @@ helm upgrade --install autodoc k8s/helm/charts/autodoc/ --values k8s/helm/charts
 helm upgrade --install servicehost k8s/helm/charts/servicehost/ --values k8s/helm/charts/servicehost/values.yaml --namespace mef-dev
 helm upgrade --install plantuml k8s/helm/charts/plantuml/ --values k8s/helm/charts/plantuml/values.yaml --namespace mef-dev
 ```
+
+#### List the Created Objects
+```
+$ kubectl get all --namespace mef-dev
+NAME                                    READY   STATUS    RESTARTS   AGE
+pod/mssql-0                             1/1     Running   0          7m39s
+pod/apps-7cfd95c584-gg7d4               1/1     Running   0          5m29s
+pod/api-668f59687d-7rvxn                1/1     Running   0          5m22s
+pod/autodoc-6f7d6cfdb9-9b5nr            1/1     Running   0          5m16s
+pod/servicehost-6d85d848b-7txdw         1/1     Running   0          5m9s
+pod/platuml-plantuml-544cd6544b-w2pb6   1/1     Running   0          5m2s
+
+NAME                       TYPE           CLUSTER-IP      EXTERNAL-IP     PORT(S)          AGE
+service/mssql              LoadBalancer   10.43.213.10    192.168.50.12   1433:32091/TCP   7m39s
+service/apps               LoadBalancer   10.43.14.151    192.168.50.12   81:30188/TCP     5m29s
+service/api                LoadBalancer   10.43.12.43     192.168.50.12   82:30753/TCP     5m22s
+service/autodoc            LoadBalancer   10.43.120.168   192.168.50.12   83:30488/TCP     5m16s
+service/servicehost        LoadBalancer   10.43.7.94      192.168.50.12   84:32274/TCP     5m9s
+service/platuml-plantuml   LoadBalancer   10.43.152.190   192.168.50.12   85:31176/TCP     5m2s
+```
+
+
+### After running the pod, you can use the following ports
+1) http://localhost:81
+The APP is web frontend (GUI) element of serverless MEF.DEV openAPI platform.
+2) http://localhost:82
+The API is a backend stateless element of serverless MEF.DEV openAPI platform.
+3) http://localhost:83
+The AUTODOC is a backend statefull element of serverless MEF.DEV openAPI platform.
+4) http://localhost:84
+The SERVICEHOST is a backend statefull element of serverless MEF.DEV openAPI platform.
+5) http://localhost:85
+PlantUML is an open-source tool allowing users to create diagrams from a plain text language.
+6) mssql - localhost:1433
 
 ### Helm uninstall app
 ```
