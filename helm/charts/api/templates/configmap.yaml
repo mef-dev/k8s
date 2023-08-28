@@ -1,0 +1,20 @@
+ 
+{{- if .Values.apiConfig }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ template "api.fullname" . }}-config
+  annotations:
+    "helm.sh/resource-policy": "keep"
+  labels:
+    app: "{{ template "api.fullname" . }}"
+    chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
+    heritage: {{ .Release.Service | quote }}
+    release: {{ .Release.Name | quote }}
+data:
+{{- range $path, $config := .Values.apiConfig }}
+  {{ $path }}: |
+{{ $config | indent 4 -}}
+{{- end -}}
+{{- end -}}

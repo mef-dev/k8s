@@ -1,0 +1,8 @@
+apiVersion: v2
+name: mssql
+description: The MSSQL is a database container of serverless MEF.DEV openAPI platform.
+type: application
+version: 0.0.1
+appVersion: "latest"
+sources:
+- https://github.com/mef-dev/k8s/tree/dev/helm/charts/mssql

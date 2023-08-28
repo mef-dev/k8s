@@ -1,0 +1,279 @@
+# Allows you to add config files
+apiConfig:
+  appsettings.json: |
+
+   {
+    "FileVersion": "1.1.11.7",
+    "ConnectionStrings": {
+        "UCPDbConnection": "Server=mssql;Database=UCP;User ID=UCP_user;Password=Widecoup1!;TrustServerCertificate=true;Trusted_Connection=No;MultipleActiveResultSets=true",
+        "providerName": "Microsoft.Data.SqlClient"
+    },
+    "Serilog": {
+        "EnableTrace": true,
+        "MinimumLevel": "Debug",
+        "WriteTo": [
+            {
+                "Name": "Conditional",
+                "Args": {
+                    "expression": true,
+                    "configureSink": [
+                        {
+                            "Name": "Console"
+                        }
+                    ]
+                }
+            },
+            {
+                "Name": "MSSqlServer",
+                "Args": {
+                    "UCPDbConnection": "Server=mssql;Database=UCP;User ID=UCP_user;Password=Widecoup1!;TrustServerCertificate=true;Trusted_Connection=No;MultipleActiveResultSets=true",
+                    "tableName": "Logs"
+                }
+            },
+            {
+                "Name": "File",
+                "Args": {
+                    "path": "ucp.api.log",
+                    "rollingInterval": "Day",
+                    "rollOnFileSizeLimit": true,
+                    "fileSizeLimitBytes": "524288000"
+                }
+            },
+            {
+                "Name": "MSSqlServer",
+                "Args": {
+                    "connectionString": "Server=mssql;Database=UCP;User ID=UCP_user;Password=Widecoup1!;TrustServerCertificate=true;Trusted_Connection=No;MultipleActiveResultSets=true",
+                    "tableName": "SLogs",
+                    "autoCreateSqlTable": true
+                }
+            },
+            {
+                "Name": "Logger",
+                "Args": {
+                    "configureLogger": {
+                        "WriteTo": [
+                            {
+                                "Name": "Elasticsearch",
+                                "Args": {
+                                    "nodeUris": "https://es.mef.dev:9200",
+                                    "connectionGlobalHeaders": "Authorization=Basic ZWxhc3RpYzp6SVNQaTRvVFFPZW5DWGhock0wYg==",
+                                    "indexFormat": "log-workflow-{0:yyyy.MM}"
+                                }
+                            }
+                        ],
+                        "Filter": [
+                            {
+                                "Name": "ByIncludingOnly",
+                                "Args": {
+                                    "expression": "GroupId = 'Workflow'"
+                                }
+                            }
+                        ],
+                        "Enrich": [
+                            "FromLogContext"
+                        ]
+                    }
+                }
+            }
+        ]
+    },
+    "Settings": {
+        "StorageFolder": "/storage/ProdK8S",
+        "FrontDomain": "http://localhost:81",
+        "Roles": [
+            "root",
+            "admin",
+            "enduser",
+            "developer",
+            "developeradmin"
+        ],
+        "Mail": {
+            "SendMail": true,
+            "MailAddressFrom": {
+                "Address": "anyapi.api.call@gmail.com",
+                "DisplayName": "MEF.DEV platform"
+            },
+            "SmtpClient": {
+                "Host": "smtp.gmail.com",
+                "Port": 465,
+                "NetworkCredential": {
+                    "UserName": "anyapi.api.call@gmail.com",
+                    "Password": "Widecoup1"
+                },
+                "EnableSsl": true,
+                "DeliveryMethod": 0
+            }
+        },
+        "EntityGenerator": {
+            "Enabled": false,
+            "Url": "http://localhost:84",
+            "AuthType": "NTLM"
+        },
+        "CookieOptions": {
+            "Secure": false,
+            "SameSite": -1
+        },
+        "SerilogSelfLogEnable": false,
+        "SerilogSelfLogPath": ".\\Logs\\serilog.self.log"
+    },
+    "AuthOptions": {
+        "Issuer": "UCP_Identity",
+        "Audience": "http://localhost:81",
+        "Domain": "localhost",
+        "ValidateIssuer": false,
+        "ValidateAudience": false,
+        "ValidateIssuerSigningKey": true,
+        "Lifetime": 10,
+        "Google": {
+            "ClientId": "ClientId.apps.googleusercontent.com",
+            "ClientSecret": "ClientSecret"
+        },
+        "Linkedin": {
+            "ClientId": "78xgiv3cg7lf26",
+            "ClientSecret": "eEinPGpjSQnylmN0"
+        },
+        "IdGovUa": {
+            "ClientId": "96f3e7e2839c694b4ab7faaf1f98862f",
+            "ClientSecret": "",
+            "CasPath": "C:\\CAs.json",
+            "CaCertificatesPath": "C:\\uakeycert.p7b",
+            "PKeyCaCommonName": "КНЕДП ТОВ \"Центр сертифікації ключів \"Україна\"",
+            "PKeyPath": "C:\\Key-6.dat",
+            "PKeyPassword": ""
+        },
+        "AzureAd": {
+            "Instance": "https://login.microsoftonline.com/",
+            "Domain": "Domain.onmicrosoft.com",
+            "TenantId": "common",
+            "ClientId": "ClientId",
+            "CallbackPath": "/auth/signin-microsoft",
+            "SignedOutCallbackPath ": "/auth/signaout-callback-microsoft"
+        },
+        "Network": "Internet",
+        "AuthenticationTypes": [
+            "CloudAP",
+            "Negotiate",
+            "NTLM",
+            "Kerberos"
+        ],
+        "OpendatabotApiKey": "FeS7J8jTbEt8"
+    },
+    "Logging": {
+        "LogLevel": {
+            "Default": "Debug",
+            "System": "Information",
+            "Microsoft": "Information"
+        }
+    }
+   }
+replicaCount: 1
+
+image:
+  repository: digitalbss/api
+  pullPolicy: IfNotPresent
+  # Overrides the image tag whose default is the chart appVersion.
+  tag: "latest"
+serviceAccount:
+  # Specifies whether a service account should be created
+  create: true
+  # Annotations to add to the service account
+  annotations: {}
+  # The name of the service account to use.
+  # If not set and create is true, a name is generated using the fullname template
+  name: "api"
+
+podAnnotations: {}
+
+podSecurityContext: {}
+  # fsGroup: 2000
+
+securityContext: {}
+  # capabilities:
+  #   drop:
+  #   - ALL
+  # readOnlyRootFilesystem: true
+  # runAsNonRoot: true
+  # runAsUser: 1000
+
+#ContainerPort
+httpPort: 5000 
+
+service:
+  name: api
+  type: LoadBalancer
+  port: 82
+ingress:
+  enabled: false
+  className: "nginx"
+  annotations:
+    cert-manager.io/issuer: letsencrypt-prod
+
+  hosts:
+    - host: api.example.com
+      paths:
+        - path: /
+          pathType: ImplementationSpecific
+  
+  tls:
+    - secretName: ingress-api-production
+      hosts:
+        - api.example.com
+
+volumes:
+  - name: config-volume-api
+    configMap:
+      name: api-config
+  - name: apps-storage
+    hostPath:
+      path: /mefdev/apps-storage
+
+volumeMounts:
+  - name: config-volume-api
+    mountPath: /app/appsettings.json
+    subPath: appsettings.json
+  - name: apps-storage
+    mountPath: /storage/ProdK8S
+
+
+## Persist data to a persistent volume
+persistence:
+  enabled: false
+  ## database data Persistent Volume Storage Class
+  ## If defined, storageClassName: <storageClass>
+  ## If set to "-", storageClassName: "", which disables dynamic provisioning
+  ## If undefined (the default) or set to null, no storageClassName spec is
+  ##   set, choosing the default provisioner.  (gp2 on AWS, standard on
+  ##   GKE, AWS & OpenStack)
+  ##
+  # storageClass: "-"
+  accessMode: ReadWriteMany
+  size: 1Gi
+
+resources: {}
+  # We usually recommend not to specify default resources and to leave this as a conscious
+  # choice for the user. This also increases chances charts run on environments with little
+  # resources, such as Minikube. If you do want to specify resources, uncomment the following
+  # lines, adjust them as necessary, and remove the curly braces after 'resources:'.
+  # limits:
+  #   cpu: 100m
+  #   memory: 128Mi
+  # requests:
+  #   cpu: 100m
+  #   memory: 128Mi
+env:
+    ASPNETCORE_SETTINGS: "ProdGCP"
+    ASPNETCORE_ENVIRONMENT: "Production"
+    ASPNETCORE_URLS: "http://*:5000"
+
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 2
+  targetCPUUtilizationPercentage: 90
+  # targetMemoryUtilizationPercentage: 80
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}

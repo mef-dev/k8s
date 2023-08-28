@@ -1,0 +1,8 @@
+apiVersion: v2
+name: apps
+description: The APP is web frontend (GUI) element of serverless MEF.DEV openAPI platform.
+type: application
+version: 0.0.1
+appVersion: "latest"
+sources:
+- https://github.com/mef-dev/k8s/tree/dev/helm/charts/apps
