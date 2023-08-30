@@ -22,6 +22,7 @@ Using the template Helm charts assumes the following pre-requisites are complete
 helm install app
 
 ```
+mkdir -p /mefdev/mssql-data /mefdev/mefdev-storage /mefdev/apps-storage
 git clone https://github.com/mef-dev/k8s.git
 kubectl create namespace mef-dev
 helm upgrade --install mssql k8s/helm/charts/mssql/ --values k8s/helm/charts/mssql/values.yaml --namespace mef-dev
@@ -74,6 +75,6 @@ helm uninstall autodoc --namespace mef-dev
 helm uninstall servicehost --namespace mef-dev
 helm uninstall plantuml --namespace mef-dev
 helm uninstall mssql --namespace mef-dev
-sudo rm -fr /mefdev/
+rm -fr /mefdev/
 kubectl delete namespace mef-dev
 ```

@@ -1,4 +1,20 @@
 # Allows you to add config files
+appsConfig:
+  config.json: |
+   {
+        "apiUrl": "http://localhost:82",
+        "LinkedInClientId": "78xgiv3cg7lf26",
+
+        "LinkedinAuth": true,
+        "GoogleAuth": false,
+        "IdGovUaAuth": false,
+        "AzureAdAuth": false,
+        "PasswordAuth": true,
+
+        "contactPhone": "tg: https://t.me/dialexpert; viber: viber://chat?number=380676584770; whatsapp: https://wa.me/380676584770; linkedin: https://www.linkedin.com/in/polovnikov; skype: join.skype.com/invite/hNcUwm72LtLd; phone: +351910533712"
+   }
+
+
 replicaCount: 1
 image:
   repository: digitalbss/apps
@@ -19,7 +35,8 @@ podAnnotations: {}
 podSecurityContext: {}
   # fsGroup: 2000
 
-securityContext: {}
+securityContext:
+  privileged: true
   # capabilities:
   #   drop:
   #   - ALL
@@ -50,11 +67,17 @@ ingress:
         - apps.example.com
 
 volumes:
+  - name: config-volume-apps
+    configMap:
+      name: apps-config
   - name: apps-storage    
     hostPath:
       path: /mefdev/apps-storage
 
 volumeMounts:
+  - name: config-volume-apps
+    mountPath: /usr/share/nginx/html/config/config.json
+    subPath: config.json
   - name: apps-storage
     mountPath: /storage
 
