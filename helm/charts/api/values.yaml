@@ -207,6 +207,15 @@ ingress:
   enabled: false
   className: "nginx"
   annotations:
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      proxy_hide_header Access-Control-Allow-Credentials;
+      add_header Access-Control-Allow-Credentials true always;
+      proxy_hide_header Access-Control-Allow-Origin;
+      add_header Access-Control-Allow-Origin $http_origin always;
+      add_header Access-Control-Allow-Headers "Authorization,Pragma,Cache-control,Content-type" always;
+      add_header Access-Control-Allow-Methods "GET,POST,PUT,DELETE,HEAD,OPTIONS" always;
+      add_header Strict-Transport-Security "max-age=31536000";
+      add_header Content-Security-Policy "img-src https: data:; upgrade-insecure-requests";
     cert-manager.io/issuer: letsencrypt-prod
 
   hosts:
