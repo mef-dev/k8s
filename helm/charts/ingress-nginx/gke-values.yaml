@@ -1,0 +1,54 @@
+controller:
+  kind: DaemonSet
+  service:
+    type: LoadBalancer
+    externalTrafficPolicy: Local
+    nodePorts:
+      http: 30100
+      https: 30101
+  ingressClassResource:
+    default: true
+  watchIngressWithoutClass: true
+  affinity:
+    podAntiAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+      - labelSelector:
+          matchExpressions:
+          - key: app.kubernetes.io/component
+            operator: In
+            values:
+            - controller
+          - key: app.kubernetes.io/instance
+            operator: In
+            values:
+            - ingress-nginx
+          - key: app.kubernetes.io/name
+            operator: In
+            values:
+            - ingress-nginx
+        topologyKey: "kubernetes.io/hostname"
+
+  metrics:
+    enabled: true
+    service:
+      annotations:
+       prometheus.io/scrape: "true"
+       prometheus.io/port: "10254"
+
+    priorityClassName: "medium-priority"
+
+  revisionHistoryLimit: 3
+
+  config:
+    
+    proxy-read-timeout: "7200"
+    proxy-send-timeout: "7200" 
+    allow-snippet-annotations: "true"
+    enable-underscores-in-headers: "true"
+    ignore-invalid-headers: "false"
+    use-forwarded-headers: "true"
+    proxy-body-size: "1024m"
+    large_client_header_buffers: "4 16k"  
+    1433: "default/mssql:1433"
+tcp:
+  1433: default/mssql:1433
