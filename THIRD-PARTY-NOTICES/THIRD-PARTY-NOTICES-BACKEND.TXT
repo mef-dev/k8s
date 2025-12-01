@@ -976,14 +976,18 @@ Licensed under MIT
 Available at https://licenses.nuget.org/MIT
 
 
-License notice for Microsoft.Extensions.Options.ConfigurationExtensions (v1.0.0)
+License notice for Microsoft.Extensions.Options.ConfigurationExtensions (v8.0.0)
 ------------------------------------
 
-http://www.asp.net/
+https://github.com/dotnet/runtime at 5535e31a712343a63f5d7d796cd874e563e5ac14
 
-Copyright © Microsoft Corporation
+https://dot.net/
 
-License available at http://www.microsoft.com/web/webpi/eula/net_library_eula_enu.htm
+Copyright © Microsoft Corporation. All rights reserved.
+
+Licensed under MIT
+
+Available at https://licenses.nuget.org/MIT
 
 
 License notice for Microsoft.Extensions.Primitives (v8.0.0)
