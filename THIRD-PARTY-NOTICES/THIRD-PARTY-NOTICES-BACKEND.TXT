@@ -1,4 +1,4 @@
-﻿License notice for Asp.Versioning.Mvc (v8.1.0)
+﻿License1 notice for Asp.Versioning.Mvc (v8.1.0)
 ------------------------------------
 
 https://github.com/dotnet/aspnet-api-versioning at 22a775b8eae36147587faaa062d7555260c94736
