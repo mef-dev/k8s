@@ -8,7 +8,7 @@
 
 **Deploy and operate MEF.DEV with Helm.**
 
-A complete installation guide for the web frontend, UCP API, background services,
+A complete installation guide for the web frontend, API, background services,
 document service, SQL Server and PostgreSQL with pgvector. Choose your Ingress or
 Gateway controller and configure each component through a single values file.
 
@@ -37,7 +37,7 @@ Gateway controller and configure each component through a single values file.
 flowchart LR
     Browser[Browser] --> Edge[Ingress / Gateway]
     Edge --> Apps[Web frontend]
-    Edge --> API[UCP API]
+    Edge --> API[API]
     Edge --> Docs[Knowledge Graph]
     API --> SQL[(SQL Server)]
     API --> PG[(PostgreSQL + pgvector)]
@@ -143,7 +143,7 @@ set an available class in each persistent component's values, or provide an `exi
 | `mssql` | SQL Server and persistent storage | [mssql.yaml](helm/values/mssql.yaml) |
 | `pgvector` | PostgreSQL with the vector extension | [pgvector.yaml](helm/values/pgvector.yaml) |
 | `db-update` | Explicit database migration Job | [db-update.yaml](helm/values/db-update.yaml) |
-| `api` | UCP API | [api.yaml](helm/values/api.yaml) |
+| `api` | API | [api.yaml](helm/values/api.yaml) |
 | `apps` | Web frontend | [apps.yaml](helm/values/apps.yaml) |
 | `servicehost` | Background tasks and integrations | [servicehost.yaml](helm/values/servicehost.yaml) |
 | `knowledge-graph` | Documents and packages | [knowledge-graph.yaml](helm/values/knowledge-graph.yaml) |
