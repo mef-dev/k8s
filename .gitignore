@@ -1,0 +1,6 @@
+*.tgz
+.local/
+.env
+.env.*
+*.local.yaml
+__pycache__/

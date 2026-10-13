@@ -1,124 +1,138 @@
-# Allows you to add config files
-appsConfig:
-  config.json: |
-   {
-        "apiUrl": "http://localhost:82",
-        "LinkedInClientId": "78xgiv3cg7lf26",
-
-        "LinkedinAuth": true,
-        "GoogleAuth": false,
-        "IdGovUaAuth": false,
-        "AzureAdAuth": false,
-        "PasswordAuth": true,
-
-        "contactPhone": "tg: https://t.me/dialexpert; viber: viber://chat?number=380676584770; whatsapp: https://wa.me/380676584770; linkedin: https://www.linkedin.com/in/polovnikov; skype: join.skype.com/invite/hNcUwm72LtLd; phone: +351910533712"
-   }
-
-
+nameOverride: ''
+fullnameOverride: ''
 replicaCount: 1
+revisionHistoryLimit: 3
 image:
   repository: digitalbss/apps
-  pullPolicy: IfNotPresent
-  # Overrides the image tag whose default is the chart appVersion.
-  tag: "latest"
-serviceAccount:
-  # Specifies whether a service account should be created
-  create: true
-  # Annotations to add to the service account
+  tag: latest
+  pullPolicy: Always
+imagePullSecrets: []
+containerPort: 80
+service:
+  type: ClusterIP
+  port: 80
+  nodePort: null
   annotations: {}
-  # The name of the service account to use.
-  # If not set and create is true, a name is generated using the fullname template
-  name: "apps"
-#imagePullSecrets:
-#    - name: registry-credentials
+serviceAccount:
+  create: true
+  name: ''
+  annotations: {}
+automountServiceAccountToken: false
+podLabels: {}
 podAnnotations: {}
 podSecurityContext: {}
-  # fsGroup: 2000
-
 securityContext:
-  privileged: true
-  # capabilities:
-  #   drop:
-  #   - ALL
-  # readOnlyRootFilesystem: true
-  # runAsNonRoot: true
-  # runAsUser: 1000
-#ContainerPort
-httpPort: 80
-
-service:
-  name: apps
-  type: LoadBalancer
-  port: 81
-ingress:
-  enabled: false
-  className: ""
-  annotations:
-    cert-manager.io/issuer: letsencrypt-prod
-
-  hosts:
-    - host: apps.example.com
-      paths:
-        - path: /
-          pathType: Prefix
-  tls:
-    - secretName: ingress-apps-production
-      hosts:
-        - apps.example.com
-
-volumes:
-  - name: config-volume-apps
-    configMap:
-      name: apps-config
-  - name: apps-storage    
-    hostPath:
-      path: /mefdev/apps-storage
-
-volumeMounts:
-  - name: config-volume-apps
+  allowPrivilegeEscalation: false
+deployment:
+  strategy:
+    type: Recreate
+terminationGracePeriodSeconds: 60
+env: {}
+envFrom: []
+command: []
+args: []
+initContainers: []
+lifecycle: {}
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 1000m
+    memory: 512Mi
+startupProbe:
+  tcpSocket:
+    port: http
+  periodSeconds: 5
+  failureThreshold: 60
+readinessProbe:
+  httpGet:
+    path: /
+    port: http
+  periodSeconds: 10
+livenessProbe: {}
+config:
+  enabled: true
+  existingConfigMap: ''
+  existingSecret: ''
+  data:
+    config.json: |-
+      {
+        "apiUrl": "https://api.example.com",
+        "apiUrl2": "",
+        "EntraIdAuthClientId": "",
+        "LinkedInClientId": "",
+        "EntraIdAuthUrl": "https://login.microsoftonline.com/common",
+        "contactPhone": ""
+      }
+    nginx.conf: |
+      events {}
+      http {
+        include /etc/nginx/mime.types;
+        server {
+          listen 80;
+          server_name _;
+          root /usr/share/nginx/html;
+          index index.html;
+          add_header X-Content-Type-Options nosniff always;
+          add_header Referrer-Policy strict-origin-when-cross-origin always;
+          add_header X-Frame-Options SAMEORIGIN always;
+          location / { try_files $uri $uri/ /index.html; }
+          location = /config/config.json {
+            add_header Cache-Control "no-store" always;
+            try_files $uri =404;
+          }
+          location = /index.html {
+            add_header Cache-Control "no-cache" always;
+            try_files $uri =404;
+          }
+        }
+      }
+  mounts:
+  - key: config.json
     mountPath: /usr/share/nginx/html/config/config.json
-    subPath: config.json
-  - name: apps-storage
-    mountPath: /storage
-
-
-## Persist data to a persistent volume
+  - key: nginx.conf
+    mountPath: /etc/nginx/nginx.conf
 persistence:
   enabled: false
-  ## database data Persistent Volume Storage Class
-  ## If defined, storageClassName: <storageClass>
-  ## If set to "-", storageClassName: "", which disables dynamic provisioning
-  ## If undefined (the default) or set to null, no storageClassName spec is
-  ##   set, choosing the default provisioner.  (gp2 on AWS, standard on
-  ##   GKE, AWS & OpenStack)
-  ##
-  #storageClass: "-"
-  accessMode: ReadWriteMany
+  existingClaim: ''
+  storageClass: ''
+  accessModes:
+  - ReadWriteOnce
   size: 1Gi
-
-
-resources: {}
-  # We usually recommend not to specify default resources and to leave this as a conscious
-  # choice for the user. This also increases chances charts run on environments with little
-  # resources, such as Minikube. If you do want to specify resources, uncomment the following
-  # lines, adjust them as necessary, and remove the curly braces after 'resources:'.
-  # limits:
-  #   cpu: 100m
-  #   memory: 128Mi
-  # requests:
-  #   cpu: 100m
-  #   memory: 128Mi
-
-
-
+  retain: true
+  annotations: {}
+  mountPath: /storage
+  subPath: ''
+volumes:
+- name: front
+  persistentVolumeClaim:
+    claimName: front
+volumeMounts:
+- name: front
+  mountPath: /storage
+nodeSelector:
+  kubernetes.io/os: linux
+tolerations: []
+affinity: {}
+dnsConfig: {}
 autoscaling:
   enabled: false
   minReplicas: 1
-  maxReplicas: 2
-  targetCPUUtilizationPercentage: 90
-  # targetMemoryUtilizationPercentage: 80
-nodeSelector: {}
-
-tolerations: []
-
-affinity: {}
+  maxReplicas: 3
+  targetCPUUtilizationPercentage: 80
+networking:
+  mode: none
+ingress:
+  className: ''
+  annotations: {}
+  hosts: []
+  tls: []
+gateway:
+  parentRefs: []
+  hostnames: []
+  rules:
+  - matches:
+    - path:
+        type: PathPrefix
+        value: /

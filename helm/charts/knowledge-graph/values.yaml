@@ -1,0 +1,116 @@
+nameOverride: ''
+fullnameOverride: ''
+replicaCount: 1
+revisionHistoryLimit: 3
+image:
+  repository: digitalbss/knowledge-graph
+  tag: latest
+  pullPolicy: Always
+imagePullSecrets: []
+containerPort: 80
+service:
+  type: ClusterIP
+  port: 80
+  nodePort: null
+  annotations: {}
+serviceAccount:
+  create: true
+  name: ''
+  annotations: {}
+automountServiceAccountToken: false
+podLabels: {}
+podAnnotations: {}
+podSecurityContext: {}
+securityContext:
+  allowPrivilegeEscalation: false
+deployment:
+  strategy:
+    type: Recreate
+terminationGracePeriodSeconds: 60
+env: {}
+envFrom: []
+command: []
+args: []
+initContainers: []
+lifecycle: {}
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 1000m
+    memory: 512Mi
+startupProbe:
+  failureThreshold: 30
+  httpGet:
+    path: /
+    port: http
+  periodSeconds: 5
+  successThreshold: 1
+  timeoutSeconds: 3
+readinessProbe:
+  failureThreshold: 3
+  httpGet:
+    path: /
+    port: http
+  periodSeconds: 10
+  successThreshold: 1
+  timeoutSeconds: 3
+livenessProbe:
+  failureThreshold: 3
+  httpGet:
+    path: /
+    port: http
+  periodSeconds: 20
+  successThreshold: 1
+  timeoutSeconds: 5
+config:
+  enabled: false
+  existingConfigMap: ''
+  existingSecret: ''
+  data: {}
+  mounts: []
+persistence:
+  enabled: false
+  existingClaim: ''
+  storageClass: ''
+  accessModes:
+  - ReadWriteOnce
+  size: 1Gi
+  retain: true
+  annotations: {}
+  mountPath: /storage
+  subPath: ''
+volumes:
+- name: back
+  persistentVolumeClaim:
+    claimName: back
+volumeMounts:
+- name: back
+  mountPath: /usr/share/nginx/html/packages
+  readOnly: false
+nodeSelector:
+  kubernetes.io/os: linux
+tolerations: []
+affinity: {}
+dnsConfig: {}
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 3
+  targetCPUUtilizationPercentage: 80
+networking:
+  mode: none
+ingress:
+  className: ''
+  annotations: {}
+  hosts: []
+  tls: []
+gateway:
+  parentRefs: []
+  hostnames: []
+  rules:
+  - matches:
+    - path:
+        type: PathPrefix
+        value: /

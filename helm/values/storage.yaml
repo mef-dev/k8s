@@ -1,0 +1,23 @@
+# Select a StorageClass that supports ReadWriteMany before installation.
+claims:
+  front:
+    create: true
+    storageClass: ''
+    accessModes:
+    - ReadWriteMany
+    size: 10Gi
+    retain: true
+  back:
+    create: true
+    storageClass: ''
+    accessModes:
+    - ReadWriteMany
+    size: 10Gi
+    retain: true
+  api-config:
+    create: true
+    storageClass: ''
+    accessModes:
+    - ReadWriteMany
+    size: 1Gi
+    retain: true

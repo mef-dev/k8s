@@ -1,110 +1,114 @@
+nameOverride: ''
+fullnameOverride: ''
 replicaCount: 1
+revisionHistoryLimit: 3
 image:
   repository: digitalbss/mssql
-  pullPolicy: IfNotPresent
-
-
-  # Overrides the image tag whose default is the chart appVersion.
-  tag: "latest"
-serviceAccount:
-  # Specifies whether a service account should be created
-  create: true
-  # Annotations to add to the service account
-  annotations: {}
-  # The name of the service account to use.
-  # If not set and create is true, a name is generated using the fullname template
-  name: "mssql"
-#imagePullSecrets:
-#    - name: registry-credentials
-podAnnotations: {}
-podSecurityContext: {}
-  # fsGroup: 2000
-
-securityContext:
-  privileged: true
-  # capabilities:
-  #   drop:
-  #   - ALL
-  # readOnlyRootFilesystem: true
-  # runAsNonRoot: true
-  # runAsUser: 1000
-#ContainerPort
-httpPort: 1433
-
+  tag: latest
+  pullPolicy: Always
+imagePullSecrets: []
+containerPort: 1433
 service:
-  name: mssql
-  type: LoadBalancer
-  protocol: TCP
+  type: ClusterIP
   port: 1433
-ingress:
-  enabled: false
-  className: "nginx"
-  annotations:
-    cert-manager.io/issuer: letsencrypt-prod
-  
-  hosts:
-    - host: mssql.example.com
-      paths:
-        - path: /
-          pathType: ImplementationSpecific
-
-  tls:
-    - secretName: ingress-mssql-production
-      hosts:
-        - mssql.example.com
-
-volumes:
-  - name: mssqldb
-    hostPath:  
-      path: /mefdev/mssql-data
-
-volumeMounts:
-  - name: mssqldb
-    mountPath: /var/opt/mssql
-
-
-## Persist data to a persistent volume
-persistence:
-  enabled: false
-  ## database data Persistent Volume Storage Class
-  ## If defined, storageClassName: <storageClass>
-  ## If set to "-", storageClassName: "", which disables dynamic provisioning
-  ## If undefined (the default) or set to null, no storageClassName spec is
-  ##   set, choosing the default provisioner.  (gp2 on AWS, standard on
-  ##   GKE, AWS & OpenStack)
-  ##
-  storageClass: "nfs-client"
-  accessMode: ReadWriteMany
-  size: 1Gi
-
-resources:
-  # We usually recommend not to specify default resources and to leave this as a conscious
-  # choice for the user. This also increases chances charts run on environments with little
-  # resources, such as Minikube. If you do want to specify resources, uncomment the following
-  # lines, adjust them as necessary, and remove the curly braces after 'resources:'.
-   limits:
-     cpu: 4000m
-     memory: 8G
-   requests:
-     cpu: 2000m
-     memory: 4G
-
-
+  nodePort: null
+  annotations: {}
+serviceAccount:
+  create: true
+  name: ''
+  annotations: {}
+automountServiceAccountToken: false
+podLabels: {}
+podAnnotations: {}
+podSecurityContext:
+  fsGroup: 10001
+securityContext:
+  allowPrivilegeEscalation: false
+  runAsUser: 10001
+  runAsNonRoot: true
+deployment:
+  strategy:
+    type: Recreate
+terminationGracePeriodSeconds: 60
 env:
-    MSSQL_PID: "Developer"
-    ACCEPT_EULA: "Y"
-    MSSQL_AGENT_ENABLED: "true"
-    MSSQL_SA_PASSWORD: "MyC0m9l&xP@ssw0rd"
-
-
+  ACCEPT_EULA: N
+  MSSQL_PID: Developer
+  MSSQL_AGENT_ENABLED: 'true'
+  MSSQL_MEMORY_LIMIT_MB: '2048'
+  MSSQL_SA_PASSWORD:
+    valueFrom:
+      secretKeyRef:
+        name: mssql-auth
+        key: password
+envFrom: []
+command:
+- /opt/mssql/bin/sqlservr
+args: []
+initContainers: []
+lifecycle: {}
+resources:
+  requests:
+    cpu: 500m
+    memory: 2Gi
+  limits:
+    cpu: 2000m
+    memory: 3Gi
+startupProbe:
+  tcpSocket:
+    port: database
+  periodSeconds: 5
+  failureThreshold: 60
+readinessProbe:
+  exec:
+    command:
+    - sh
+    - -ec
+    - SQLCMDPASSWORD="$MSSQL_SA_PASSWORD" /opt/mssql-tools/bin/sqlcmd -S localhost -U sa -C -b -l 3 -Q "SELECT 1"
+      >/dev/null
+  periodSeconds: 10
+  timeoutSeconds: 5
+livenessProbe: {}
+config:
+  enabled: false
+  existingConfigMap: ''
+  existingSecret: ''
+  data: {}
+  mounts: []
+persistence:
+  enabled: true
+  existingClaim: ''
+  storageClass: ''
+  accessModes:
+  - ReadWriteOnce
+  size: 10Gi
+  retain: true
+  annotations: {}
+  mountPath: /var/opt/mssql
+  subPath: ''
+volumes: []
+volumeMounts: []
+nodeSelector:
+  kubernetes.io/os: linux
+tolerations: []
+affinity: {}
+dnsConfig: {}
 autoscaling:
   enabled: false
   minReplicas: 1
-  maxReplicas: 2
-  targetCPUUtilizationPercentage: 90
-  # targetMemoryUtilizationPercentage: 80
-nodeSelector: {}
-
-tolerations: []
-
-affinity: {}
+  maxReplicas: 3
+  targetCPUUtilizationPercentage: 80
+networking:
+  mode: none
+ingress:
+  className: ''
+  annotations: {}
+  hosts: []
+  tls: []
+gateway:
+  parentRefs: []
+  hostnames: []
+  rules:
+  - matches:
+    - path:
+        type: PathPrefix
+        value: /

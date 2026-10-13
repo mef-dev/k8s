@@ -1,0 +1,6 @@
+nginxGateway:
+  gatewayClassName: mef-nginx
+  gatewayControllerName: gateway.nginx.org/mef-public-controller
+nginx:
+  service:
+    type: LoadBalancer

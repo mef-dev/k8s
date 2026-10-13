@@ -1,8 +1,6 @@
 apiVersion: v2
 name: plantuml
-description: Generate diagrams from textual description.
+description: MEF.DEV plantuml deployment
 type: application
-version: 0.0.1
-appVersion: "latest"
-sources:
-- https://github.com/plantuml/plantuml-server
+version: 2.0.0
+kubeVersion: '>=1.28.0-0'

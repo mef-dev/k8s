@@ -1,0 +1,8 @@
+networking:
+  mode: gateway
+gateway:
+  parentRefs:
+  - name: mef-gateway
+    sectionName: https
+  hostnames:
+  - apps.example.com

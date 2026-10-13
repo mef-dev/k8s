@@ -1,0 +1,13 @@
+networking:
+  mode: ingress
+ingress:
+  className: traefik
+  hosts:
+  - host: plantuml.example.com
+    paths:
+    - path: /
+      pathType: Prefix
+  tls:
+  - secretName: mef-tls
+    hosts:
+    - plantuml.example.com

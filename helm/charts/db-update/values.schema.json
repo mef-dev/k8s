@@ -1,0 +1,145 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "image",
+    "imagePullSecrets",
+    "migration",
+    "database",
+    "applicationVersion",
+    "filegroups",
+    "resources",
+    "nodeSelector",
+    "tolerations",
+    "bootstrapUser"
+  ],
+  "properties": {
+    "image": {
+      "type": "object"
+    },
+    "imagePullSecrets": {
+      "type": "array"
+    },
+    "migration": {
+      "type": "object",
+      "required": [
+        "enabled",
+        "runId"
+      ],
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "runId": {
+          "type": "string",
+          "maxLength": 32,
+          "pattern": "^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$"
+        },
+        "activeDeadlineSeconds": {
+          "type": "integer",
+          "minimum": 60
+        },
+        "ttlSecondsAfterFinished": {
+          "type": "integer",
+          "minimum": 60
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "enabled": {
+                "const": true
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "runId": {
+                "minLength": 1
+              }
+            }
+          }
+        }
+      ]
+    },
+    "database": {
+      "type": "object",
+      "required": [
+        "host",
+        "name",
+        "user",
+        "existingSecret",
+        "passwordKey"
+      ],
+      "properties": {
+        "host": {
+          "type": "string",
+          "minLength": 1
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "user": {
+          "type": "string",
+          "minLength": 1
+        },
+        "existingSecret": {
+          "type": "string",
+          "minLength": 1
+        },
+        "passwordKey": {
+          "type": "string",
+          "minLength": 1
+        },
+        "trustServerCertificate": {
+          "type": "boolean"
+        },
+        "createIfMissing": {
+          "type": "boolean"
+        }
+      }
+    },
+    "applicationVersion": {
+      "type": "string",
+      "maxLength": 20,
+      "pattern": "^[A-Za-z0-9._-]+$"
+    },
+    "filegroups": {
+      "type": "object"
+    },
+    "resources": {
+      "type": "object"
+    },
+    "nodeSelector": {
+      "type": "object"
+    },
+    "tolerations": {
+      "type": "array"
+    },
+    "bootstrapUser": {
+      "type": "object",
+      "required": [
+        "name",
+        "existingSecret",
+        "passwordKey"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "^[A-Za-z_][A-Za-z0-9_]{0,49}$"
+        },
+        "existingSecret": {
+          "type": "string",
+          "minLength": 1
+        },
+        "passwordKey": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    }
+  }
+}

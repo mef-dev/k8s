@@ -1,0 +1,18 @@
+networking:
+  mode: ingress
+ingress:
+  className: mef-ingress-nginx
+  hosts:
+  - host: api.example.com
+    paths:
+    - path: /
+      pathType: Prefix
+  tls:
+  - secretName: mef-tls
+    hosts:
+    - api.example.com
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: 'true'
+    nginx.ingress.kubernetes.io/proxy-body-size: 20m
+    nginx.ingress.kubernetes.io/proxy-read-timeout: '300'
+    nginx.ingress.kubernetes.io/proxy-send-timeout: '300'

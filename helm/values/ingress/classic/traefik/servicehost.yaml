@@ -1,0 +1,13 @@
+networking:
+  mode: ingress
+ingress:
+  className: traefik
+  hosts:
+  - host: servicehost.example.com
+    paths:
+    - path: /
+      pathType: Prefix
+  tls:
+  - secretName: mef-tls
+    hosts:
+    - servicehost.example.com

@@ -1,8 +1,6 @@
 apiVersion: v2
 name: servicehost
-description: The SERVICEHOST is a backend statefull element of serverless MEF.DEV openAPI platform.
+description: MEF.DEV servicehost deployment
 type: application
-version: 0.0.1
-appVersion: "latest"
-sources:
-- https://github.com/mef-dev/k8s/tree/dev/helm/charts/servicehost
+version: 2.0.0
+kubeVersion: '>=1.28.0-0'

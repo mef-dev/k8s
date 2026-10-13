@@ -1,0 +1,112 @@
+nameOverride: ''
+fullnameOverride: ''
+replicaCount: 1
+revisionHistoryLimit: 3
+image:
+  repository: pgvector/pgvector
+  tag: pg16
+  pullPolicy: Always
+imagePullSecrets: []
+containerPort: 5432
+service:
+  type: ClusterIP
+  port: 5432
+  nodePort: null
+  annotations: {}
+serviceAccount:
+  create: true
+  name: ''
+  annotations: {}
+automountServiceAccountToken: false
+podLabels: {}
+podAnnotations: {}
+podSecurityContext: {}
+securityContext:
+  allowPrivilegeEscalation: false
+deployment:
+  strategy:
+    type: Recreate
+terminationGracePeriodSeconds: 60
+env:
+  POSTGRES_DB: mef
+  POSTGRES_USER: mef
+  PGDATA: /var/lib/postgresql/data/pgdata
+  POSTGRES_PASSWORD:
+    valueFrom:
+      secretKeyRef:
+        name: pgvector-auth
+        key: password
+envFrom: []
+command: []
+args: []
+initContainers: []
+lifecycle: {}
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 1000m
+    memory: 512Mi
+startupProbe:
+  tcpSocket:
+    port: database
+  periodSeconds: 5
+  failureThreshold: 60
+readinessProbe:
+  exec:
+    command:
+    - sh
+    - -ec
+    - pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB"
+  periodSeconds: 5
+  timeoutSeconds: 5
+livenessProbe: {}
+config:
+  enabled: true
+  existingConfigMap: ''
+  existingSecret: ''
+  data:
+    01-vector.sql: |
+      CREATE EXTENSION IF NOT EXISTS vector;
+  mounts:
+  - key: 01-vector.sql
+    mountPath: /docker-entrypoint-initdb.d/01-vector.sql
+persistence:
+  enabled: true
+  existingClaim: ''
+  storageClass: ''
+  accessModes:
+  - ReadWriteOnce
+  size: 10Gi
+  retain: true
+  annotations: {}
+  mountPath: /var/lib/postgresql/data
+  subPath: ''
+volumes: []
+volumeMounts: []
+nodeSelector:
+  kubernetes.io/os: linux
+tolerations: []
+affinity: {}
+dnsConfig: {}
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 3
+  targetCPUUtilizationPercentage: 80
+networking:
+  mode: none
+ingress:
+  className: ''
+  annotations: {}
+  hosts: []
+  tls: []
+gateway:
+  parentRefs: []
+  hostnames: []
+  rules:
+  - matches:
+    - path:
+        type: PathPrefix
+        value: /

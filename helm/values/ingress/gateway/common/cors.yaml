@@ -1,0 +1,23 @@
+gateway:
+  rules:
+  - matches:
+    - path:
+        type: PathPrefix
+        value: /
+    filters:
+    - type: CORS
+      cors:
+        allowOrigins:
+        - https://apps.example.com
+        allowMethods:
+        - GET
+        - POST
+        - PUT
+        - PATCH
+        - DELETE
+        - OPTIONS
+        allowHeaders:
+        - Authorization
+        - Content-Type
+        allowCredentials: true
+        maxAge: 600

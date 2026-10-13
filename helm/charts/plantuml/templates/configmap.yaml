@@ -1,0 +1,12 @@
+{{- if and .Values.config.enabled (not .Values.config.existingConfigMap) (not .Values.config.existingSecret) }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "plantuml.configName" . }}
+  labels:
+    {{- include "plantuml.labels" . | nindent 4 }}
+data:
+  {{- range $key, $value := .Values.config.data }}
+  {{ $key }}: {{ $value | toString | quote }}
+  {{- end }}
+{{- end }}

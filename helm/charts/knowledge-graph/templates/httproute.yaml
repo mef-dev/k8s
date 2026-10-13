@@ -1,0 +1,31 @@
+{{- if eq .Values.networking.mode "gateway" }}
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: {{ include "knowledge-graph.fullname" . }}
+  labels:
+    {{- include "knowledge-graph.labels" . | nindent 4 }}
+spec:
+  parentRefs:
+    {{- toYaml .Values.gateway.parentRefs | nindent 4 }}
+  hostnames:
+    {{- toYaml .Values.gateway.hostnames | nindent 4 }}
+  rules:
+    {{- range .Values.gateway.rules }}
+    - matches:
+        {{- toYaml .matches | nindent 8 }}
+      {{- with .filters }}
+      filters:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .timeouts }}
+      timeouts:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if not .redirectOnly }}
+      backendRefs:
+        - name: {{ include "knowledge-graph.fullname" $ }}
+          port: {{ $.Values.service.port }}
+      {{- end }}
+    {{- end }}
+{{- end }}

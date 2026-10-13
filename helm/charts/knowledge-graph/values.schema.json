@@ -1,0 +1,246 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "nameOverride",
+    "fullnameOverride",
+    "replicaCount",
+    "revisionHistoryLimit",
+    "image",
+    "imagePullSecrets",
+    "containerPort",
+    "service",
+    "serviceAccount",
+    "automountServiceAccountToken",
+    "podLabels",
+    "podAnnotations",
+    "podSecurityContext",
+    "securityContext",
+    "deployment",
+    "terminationGracePeriodSeconds",
+    "env",
+    "envFrom",
+    "command",
+    "args",
+    "initContainers",
+    "lifecycle",
+    "resources",
+    "startupProbe",
+    "readinessProbe",
+    "livenessProbe",
+    "config",
+    "persistence",
+    "volumes",
+    "volumeMounts",
+    "nodeSelector",
+    "tolerations",
+    "affinity",
+    "dnsConfig",
+    "autoscaling",
+    "networking",
+    "ingress",
+    "gateway"
+  ],
+  "properties": {
+    "nameOverride": {
+      "type": "string"
+    },
+    "fullnameOverride": {
+      "type": "string"
+    },
+    "replicaCount": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "revisionHistoryLimit": {
+      "type": "integer"
+    },
+    "image": {
+      "type": "object",
+      "required": [
+        "repository",
+        "tag",
+        "pullPolicy"
+      ],
+      "properties": {
+        "repository": {
+          "type": "string",
+          "minLength": 1
+        },
+        "tag": {
+          "type": "string",
+          "minLength": 1
+        },
+        "pullPolicy": {
+          "enum": [
+            "Always",
+            "IfNotPresent",
+            "Never"
+          ]
+        }
+      }
+    },
+    "imagePullSecrets": {
+      "type": "array"
+    },
+    "containerPort": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 65535
+    },
+    "service": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "enum": [
+            "ClusterIP",
+            "NodePort",
+            "LoadBalancer"
+          ]
+        },
+        "port": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65535
+        }
+      }
+    },
+    "serviceAccount": {
+      "type": "object"
+    },
+    "automountServiceAccountToken": {
+      "type": "boolean"
+    },
+    "podLabels": {
+      "type": "object"
+    },
+    "podAnnotations": {
+      "type": "object"
+    },
+    "podSecurityContext": {
+      "type": "object"
+    },
+    "securityContext": {
+      "type": "object"
+    },
+    "deployment": {
+      "type": "object"
+    },
+    "terminationGracePeriodSeconds": {
+      "type": "integer"
+    },
+    "env": {
+      "type": "object",
+      "additionalProperties": {
+        "oneOf": [
+          {
+            "type": [
+              "string",
+              "number",
+              "boolean"
+            ]
+          },
+          {
+            "type": "object",
+            "required": [
+              "valueFrom"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "valueFrom": {
+                "type": "object",
+                "minProperties": 1,
+                "maxProperties": 1
+              }
+            }
+          }
+        ]
+      }
+    },
+    "envFrom": {
+      "type": "array"
+    },
+    "command": {
+      "type": "array"
+    },
+    "args": {
+      "type": "array"
+    },
+    "initContainers": {
+      "type": "array"
+    },
+    "lifecycle": {
+      "type": "object"
+    },
+    "resources": {
+      "type": "object"
+    },
+    "startupProbe": {
+      "type": "object"
+    },
+    "readinessProbe": {
+      "type": "object"
+    },
+    "livenessProbe": {
+      "type": "object"
+    },
+    "config": {
+      "type": "object",
+      "properties": {
+        "data": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "persistence": {
+      "type": "object"
+    },
+    "volumes": {
+      "type": "array"
+    },
+    "volumeMounts": {
+      "type": "array"
+    },
+    "nodeSelector": {
+      "type": "object"
+    },
+    "tolerations": {
+      "type": "array"
+    },
+    "affinity": {
+      "type": "object"
+    },
+    "dnsConfig": {
+      "type": "object"
+    },
+    "autoscaling": {
+      "type": "object"
+    },
+    "networking": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "mode"
+      ],
+      "properties": {
+        "mode": {
+          "enum": [
+            "none",
+            "ingress",
+            "gateway"
+          ]
+        }
+      }
+    },
+    "ingress": {
+      "type": "object"
+    },
+    "gateway": {
+      "type": "object"
+    }
+  }
+}

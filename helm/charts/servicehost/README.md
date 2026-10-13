@@ -1,7 +1,20 @@
-### Clone Repository ###
-git clone https://github.com/mef-dev/k8s.git
-### Install ###
-helm upgrade --install servicehost k8s/helm/charts/servicehost/ --values k8s/helm/charts/servicehost/values.yaml --namespace mef-dev --create-namespace
-### Uninstall ###
-helm uninstall servicehost --namespace mef-dev
+# servicehost
 
+MEF.DEV application chart, version 2.0.0.
+
+```bash
+helm upgrade --install servicehost helm/charts/servicehost --namespace mef-dev --create-namespace -f helm/values/servicehost.yaml
+```
+
+Read [installation](../../../README.md#1-prepare-the-repository-and-namespace) before running the command.
+Default container: `digitalbss/servicehost`; Service port `7000`.
+All values are documented in [values.yaml](values.yaml), enforced by [values.schema.json](values.schema.json)
+and described in the [shared values contract](../../../README.md#configuration).
+
+Application credentials must exist as Kubernetes Secrets. No private environment values are included.
+See [migration](../../../README.md#upgrade-and-migration) for the 2.0 values contract.
+
+Full application defaults are under `config.appsettings`. See [application configuration](../../../README.md#application-configuration) for feature activation, external Secrets and mounted configuration.
+
+The supplied values reference shared PVCs from the `storage` release. Install that
+release first; see the [mount mapping](../../../README.md#storage-and-databases).

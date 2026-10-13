@@ -1,0 +1,118 @@
+nameOverride: ''
+fullnameOverride: ''
+replicaCount: 1
+revisionHistoryLimit: 3
+image:
+  repository: digitalbss/apps
+  tag: latest
+  pullPolicy: Always
+imagePullSecrets: []
+containerPort: 80
+service:
+  type: ClusterIP
+  port: 80
+  nodePort: null
+  annotations: {}
+serviceAccount:
+  create: true
+  name: ''
+  annotations: {}
+automountServiceAccountToken: false
+podLabels: {}
+podAnnotations: {}
+podSecurityContext: {}
+securityContext:
+  allowPrivilegeEscalation: false
+deployment:
+  strategy:
+    type: Recreate
+terminationGracePeriodSeconds: 60
+env: {}
+envFrom: []
+command: []
+args: []
+initContainers: []
+lifecycle: {}
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 1000m
+    memory: 512Mi
+startupProbe:
+  tcpSocket:
+    port: http
+  periodSeconds: 5
+  failureThreshold: 60
+readinessProbe:
+  httpGet:
+    path: /
+    port: http
+  periodSeconds: 10
+livenessProbe: {}
+config:
+  enabled: true
+  existingConfigMap: ''
+  existingSecret: ''
+  data:
+    config.json: "{\n  \"apiUrl\": \"https://api.example.com\",\n  \"apiUrl2\": \"\
+      \",\n  \"EntraIdAuthClientId\": \"\",\n  \"LinkedInClientId\": \"\",\n  \"EntraIdAuthUrl\"\
+      : \"https://login.microsoftonline.com/common\",\n  \"contactPhone\": \"\"\n}"
+    nginx.conf: "events {}\nhttp {\n  include /etc/nginx/mime.types;\n  server {\n\
+      \    listen 80;\n    server_name _;\n    root /usr/share/nginx/html;\n    index\
+      \ index.html;\n    add_header X-Content-Type-Options nosniff always;\n    add_header\
+      \ Referrer-Policy strict-origin-when-cross-origin always;\n    add_header X-Frame-Options\
+      \ SAMEORIGIN always;\n    location / { try_files $uri $uri/ /index.html; }\n\
+      \    location = /config/config.json {\n      add_header Cache-Control \"no-store\"\
+      \ always;\n      try_files $uri =404;\n    }\n    location = /index.html {\n\
+      \      add_header Cache-Control \"no-cache\" always;\n      try_files $uri =404;\n\
+      \    }\n  }\n}\n"
+  mounts:
+  - key: config.json
+    mountPath: /usr/share/nginx/html/config/config.json
+  - key: nginx.conf
+    mountPath: /etc/nginx/nginx.conf
+persistence:
+  enabled: false
+  existingClaim: ''
+  storageClass: ''
+  accessModes:
+  - ReadWriteOnce
+  size: 1Gi
+  retain: true
+  annotations: {}
+  mountPath: /storage
+  subPath: ''
+volumes:
+- name: front
+  persistentVolumeClaim:
+    claimName: front
+volumeMounts:
+- name: front
+  mountPath: /storage
+nodeSelector:
+  kubernetes.io/os: linux
+tolerations: []
+affinity: {}
+dnsConfig: {}
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 3
+  targetCPUUtilizationPercentage: 80
+networking:
+  mode: none
+ingress:
+  className: ''
+  annotations: {}
+  hosts: []
+  tls: []
+gateway:
+  parentRefs: []
+  hostnames: []
+  rules:
+  - matches:
+    - path:
+        type: PathPrefix
+        value: /

@@ -1,0 +1,6 @@
+{{ if .Values.migration.enabled }}
+Explicit migration run: {{ .Values.migration.runId }}
+Check Job completion and actual schema. There are no automatic retries.
+{{ else }}
+Migration is disabled. Back up the database, then set migration.enabled=true and a unique migration.runId.
+{{ end }}

@@ -1,0 +1,17 @@
+ingressClass:
+  enabled: false
+providers:
+  kubernetesIngress:
+    enabled: false
+  kubernetesCRD:
+    enabled: false
+  kubernetesGateway:
+    enabled: true
+gateway:
+  enabled: false
+gatewayClass:
+  enabled: true
+  name: mef-traefik
+service:
+  spec:
+    type: LoadBalancer

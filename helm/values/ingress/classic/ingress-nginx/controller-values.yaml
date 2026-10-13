@@ -1,0 +1,24 @@
+controller:
+  kind: Deployment
+  replicaCount: 1
+  ingressClass: mef-ingress-nginx
+  ingressClassResource:
+    name: mef-ingress-nginx
+    enabled: true
+    default: false
+    controllerValue: k8s.io/mef-ingress-nginx
+  watchIngressWithoutClass: false
+  electionID: mef-ingress-nginx-leader
+  allowSnippetAnnotations: false
+  service:
+    type: LoadBalancer
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+  metrics:
+    enabled: true
+  config:
+    proxy-read-timeout: '300'
+    proxy-send-timeout: '300'
+    proxy-body-size: 20m

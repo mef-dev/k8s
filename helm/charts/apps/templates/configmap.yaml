@@ -1,18 +1,12 @@
- 
-{{- if .Values.appsConfig }}
----
+{{- if and .Values.config.enabled (not .Values.config.existingConfigMap) (not .Values.config.existingSecret) }}
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: {{ template "apps.fullname" . }}-config
+  name: {{ include "apps.configName" . }}
   labels:
-    app: "{{ template "apps.fullname" . }}"
-    chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
-    heritage: {{ .Release.Service | quote }}
-    release: {{ .Release.Name | quote }}
+    {{- include "apps.labels" . | nindent 4 }}
 data:
-{{- range $path, $config := .Values.appsConfig }}
-  {{ $path }}: |
-{{ $config | indent 4 -}}
-{{- end -}}
-{{- end -}}
+  {{- range $key, $value := .Values.config.data }}
+  {{ $key }}: {{ $value | toString | quote }}
+  {{- end }}
+{{- end }}

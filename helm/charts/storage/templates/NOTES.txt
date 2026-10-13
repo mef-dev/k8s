@@ -1,0 +1,3 @@
+Shared application PVCs: front, back, api-config.
+Check: kubectl --namespace {{ .Release.Namespace }} get pvc front back api-config
+WaitForFirstConsumer claims can remain Pending until their application Pods start.

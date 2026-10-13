@@ -1,18 +1,15 @@
- 
-{{- if .Values.servicehostConfig }}
----
+{{- if and .Values.config.enabled (not .Values.config.existingConfigMap) (not .Values.config.existingSecret) }}
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: {{ template "servicehost.fullname" . }}-config
+  name: {{ include "servicehost.configName" . }}
   labels:
-    app: "{{ template "servicehost.fullname" . }}"
-    chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
-    heritage: {{ .Release.Service | quote }}
-    release: {{ .Release.Name | quote }}
+    {{- include "servicehost.labels" . | nindent 4 }}
 data:
-{{- range $path, $config := .Values.servicehostConfig }}
-  {{ $path }}: |
-{{ $config | indent 4 -}}
-{{- end -}}
-{{- end -}}
+  {{- if not (hasKey .Values.config.data "appsettings.json") }}
+  appsettings.json: {{ include "servicehost.appsettings" . | quote }}
+  {{- end }}
+  {{- range $key, $value := .Values.config.data }}
+  {{ $key }}: {{ $value | toString | quote }}
+  {{- end }}
+{{- end }}

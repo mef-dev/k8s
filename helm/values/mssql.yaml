@@ -1,0 +1,114 @@
+nameOverride: ''
+fullnameOverride: ''
+replicaCount: 1
+revisionHistoryLimit: 3
+image:
+  repository: digitalbss/mssql
+  tag: latest
+  pullPolicy: Always
+imagePullSecrets: []
+containerPort: 1433
+service:
+  type: ClusterIP
+  port: 1433
+  nodePort: null
+  annotations: {}
+serviceAccount:
+  create: true
+  name: ''
+  annotations: {}
+automountServiceAccountToken: false
+podLabels: {}
+podAnnotations: {}
+podSecurityContext:
+  fsGroup: 10001
+securityContext:
+  allowPrivilegeEscalation: false
+  runAsUser: 10001
+  runAsNonRoot: true
+deployment:
+  strategy:
+    type: Recreate
+terminationGracePeriodSeconds: 60
+env:
+  ACCEPT_EULA: Y
+  MSSQL_PID: Developer
+  MSSQL_AGENT_ENABLED: 'true'
+  MSSQL_MEMORY_LIMIT_MB: '2048'
+  MSSQL_SA_PASSWORD:
+    valueFrom:
+      secretKeyRef:
+        name: mssql-auth
+        key: password
+envFrom: []
+command:
+- /opt/mssql/bin/sqlservr
+args: []
+initContainers: []
+lifecycle: {}
+resources:
+  requests:
+    cpu: 500m
+    memory: 2Gi
+  limits:
+    cpu: 2000m
+    memory: 3Gi
+startupProbe:
+  tcpSocket:
+    port: database
+  periodSeconds: 5
+  failureThreshold: 60
+readinessProbe:
+  exec:
+    command:
+    - sh
+    - -ec
+    - SQLCMDPASSWORD="$MSSQL_SA_PASSWORD" /opt/mssql-tools/bin/sqlcmd -S localhost
+      -U sa -C -b -l 3 -Q "SELECT 1" >/dev/null
+  periodSeconds: 10
+  timeoutSeconds: 5
+livenessProbe: {}
+config:
+  enabled: false
+  existingConfigMap: ''
+  existingSecret: ''
+  data: {}
+  mounts: []
+persistence:
+  enabled: true
+  existingClaim: ''
+  storageClass: ''
+  accessModes:
+  - ReadWriteOnce
+  size: 10Gi
+  retain: true
+  annotations: {}
+  mountPath: /var/opt/mssql
+  subPath: ''
+volumes: []
+volumeMounts: []
+nodeSelector:
+  kubernetes.io/os: linux
+tolerations: []
+affinity: {}
+dnsConfig: {}
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 3
+  targetCPUUtilizationPercentage: 80
+networking:
+  mode: none
+ingress:
+  className: ''
+  annotations: {}
+  hosts: []
+  tls: []
+gateway:
+  parentRefs: []
+  hostnames: []
+  rules:
+  - matches:
+    - path:
+        type: PathPrefix
+        value: /

@@ -1,0 +1,90 @@
+{{- if .Values.migration.enabled }}
+{{- $name := printf "%s-%s" (.Release.Name | trunc 28 | trimSuffix "-") .Values.migration.runId -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $name }}
+data:
+  update.sh: |
+    {{- .Files.Get "files/update.sh" | nindent 4 }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ $name }}
+  labels:
+    app.kubernetes.io/name: db-update
+    app.kubernetes.io/instance: {{ .Release.Name }}
+spec:
+  backoffLimit: 0
+  activeDeadlineSeconds: {{ .Values.migration.activeDeadlineSeconds }}
+  ttlSecondsAfterFinished: {{ .Values.migration.ttlSecondsAfterFinished }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: db-update
+        app.kubernetes.io/instance: {{ .Release.Name }}
+    spec:
+      restartPolicy: Never
+      automountServiceAccountToken: false
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: db-update
+          image: {{ printf "%s:%s" .Values.image.repository .Values.image.tag | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["/bin/bash", "/scripts/update.sh"]
+          securityContext:
+            allowPrivilegeEscalation: false
+          env:
+            - name: MSSQL_HOST
+              value: {{ .Values.database.host | quote }}
+            - name: CREATE_DATABASE_IF_MISSING
+              value: {{ .Values.database.createIfMissing | quote }}
+            - name: MSSQL_DB
+              value: {{ .Values.database.name | quote }}
+            - name: MSSQL_USER
+              value: {{ .Values.database.user | quote }}
+            - name: MSSQL_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.database.existingSecret }}
+                  key: {{ .Values.database.passwordKey }}
+            - name: APP_VERSION
+              value: {{ .Values.applicationVersion | quote }}
+            - name: UCP_BOOTSTRAP_USER
+              value: {{ .Values.bootstrapUser.name | quote }}
+            - name: UCP_BOOTSTRAP_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.bootstrapUser.existingSecret }}
+                  key: {{ .Values.bootstrapUser.passwordKey }}
+            - name: FG10D_Num
+              value: {{ .Values.filegroups.partition10d | quote }}
+            - name: FG10_Num
+              value: {{ .Values.filegroups.partition10 | quote }}
+            - name: FG10D14_Num
+              value: {{ .Values.filegroups.partition10d14 | quote }}
+            - name: TRUST_SERVER_CERTIFICATE
+              value: {{ .Values.database.trustServerCertificate | quote }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - name: runner
+              mountPath: /scripts
+              readOnly: true
+      volumes:
+        - name: runner
+          configMap:
+            name: {{ $name }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}

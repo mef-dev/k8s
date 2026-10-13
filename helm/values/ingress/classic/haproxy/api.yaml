@@ -1,0 +1,13 @@
+networking:
+  mode: ingress
+ingress:
+  className: haproxy
+  hosts:
+  - host: api.example.com
+    paths:
+    - path: /
+      pathType: Prefix
+  tls:
+  - secretName: mef-tls
+    hosts:
+    - api.example.com

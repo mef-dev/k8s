@@ -60,3 +60,35 @@ Create the name of the service account to use
 {{- default "default" .Values.serviceAccount.name }}
 {{- end }}
 {{- end }}
+
+{{- define "apps.image" -}}
+{{ printf "%s:%s" .Values.image.repository .Values.image.tag }}
+{{- end -}}
+{{- define "apps.validate" -}}
+{{- if and .Values.config.existingConfigMap .Values.config.existingSecret -}}
+{{- fail "config.existingConfigMap and config.existingSecret are mutually exclusive" -}}
+{{- end -}}
+{{- if and .Values.persistence.enabled (gt (int .Values.replicaCount) 1) (not (has "ReadWriteMany" .Values.persistence.accessModes)) -}}
+{{- fail "Multiple replicas sharing a PVC require ReadWriteMany; this chart does not create per-replica claims" -}}
+{{- end -}}
+{{- if and (eq .Values.networking.mode "gateway") (or (empty .Values.gateway.parentRefs) (empty .Values.gateway.hostnames)) -}}
+{{- fail "gateway mode requires explicit parentRefs and hostnames" -}}
+{{- end -}}
+{{- if and (eq .Values.networking.mode "ingress") (or (empty .Values.ingress.className) (empty .Values.ingress.hosts)) -}}
+{{- fail "ingress mode requires explicit className and hosts" -}}
+{{- end -}}
+{{- if or (hasKey .Values.ingress "enabled") (hasKey .Values.gateway "enabled") -}}
+{{- fail "Use networking.mode=none|ingress|gateway, not ingress.enabled or gateway.enabled; see migration guide" -}}
+{{- end -}}
+{{- if and .Values.persistence.enabled .Values.autoscaling.enabled (not (has "ReadWriteMany" .Values.persistence.accessModes)) -}}
+{{- fail "HPA with a shared PVC requires ReadWriteMany" -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "apps.configName" -}}
+{{ printf "%s-config" (include "apps.fullname" . | trunc 56 | trimSuffix "-") }}
+{{- end -}}
+
+{{- define "apps.headlessName" -}}
+{{ printf "%s-headless" (include "apps.fullname" . | trunc 54 | trimSuffix "-") }}
+{{- end -}}

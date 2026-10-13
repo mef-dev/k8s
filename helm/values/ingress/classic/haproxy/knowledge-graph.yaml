@@ -1,0 +1,13 @@
+networking:
+  mode: ingress
+ingress:
+  className: haproxy
+  hosts:
+  - host: knowledge-graph.example.com
+    paths:
+    - path: /
+      pathType: Prefix
+  tls:
+  - secretName: mef-tls
+    hosts:
+    - knowledge-graph.example.com

@@ -1,440 +1,488 @@
----
-# Allows you to add config files
-servicehostConfig:
-  appsettings.json: |
-  
-   {
-    "StoredFilesPath": "/files",
-    "DocIntegrationPath": "/mefdev_storage/packages",
-    "DocIntegrationUrl": "http://autodoc/packages",
-    "PlantUMLUrl": "http://plantuml:8080",
-    "Port": 7000,
-    "ResetCounters": false,
-    "EnableTrace": true,
-    "ConnectionStrings": {
-        "Widecoup": "null",
-        "Ucp": "Data Source=mssql;Initial Catalog=ucp;User ID=UCP_user;Password=Widecoup1!;MultipleActiveResultSets=true;Encrypt=True;TrustServerCertificate=True"
-    },
-    "Logging": {
-        "LogLevel": {
-            "Default": "Debug",
-            "System": "Information",
-            "Microsoft": "Information"
-        }
-    },
-    "Diagnostic": {
-        "Serilog": {
-            "Using": [
-                "Serilog.Sinks.Console",
-                "Widecoup.ServiceHost"
-            ],
-            "MinimumLevel": "Verbose",
-            "WriteTo": [
-                {
-                    "Name": "File",
-                    "Args": {
-                        "path": "./Logs/sql_report_log.txt",
-                        "fileSizeLimitBytes": "10000000",
-                        "rollingInterval": "Day",
-                        "retainedFileCountLimit": "20",
-                        "rollOnFileSizeLimit": "true",
-                        "shared": "true",
-                        "flushToDiskInterval": "00:00:01",
-                        "outputTemplate": "{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level:u3}] {Message:lj} <{ThreadId}><{ThreadName}>{NewLine}{Exception}"
-                    }
-                }
-            ]
-        }
-    },
-    "Serilog": {
-        "Using": [
-            "Serilog.Sinks.Console",
-            "Widecoup.ServiceHost"
-        ],
-        "MinimumLevel": "Debug",
-        "WriteTo": [
-            {
-                "Name": "Console",
-                "Args": {
-                    "outputTemplate": "{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level:u3}] {Message:lj} <{ThreadId}><{ThreadName}>{NewLine}{Exception}"
-                }
-            },
-            {
-                "Name": "File",
-                "Args": {
-                    "path": "./Logs/log.txt",
-                    "fileSizeLimitBytes": "10000000",
-                    "rollingInterval": "Day",
-                    "retainedFileCountLimit": "20",
-                    "rollOnFileSizeLimit": "true",
-                    "shared": "true",
-                    "flushToDiskInterval": "00:00:01",
-                    "outputTemplate": "{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level:u3}] {Message:lj} <{ThreadId}><{ThreadName}>{NewLine}{Exception}"
-                }
-            },
-            {
-                "Name": "Logger",
-                "Args": {
-                    "configureLogger": {
-                        "WriteTo": [
-                            {
-                                "Name": "Async",
-                                "Args": {
-                                    "configure": [
-                                        {
-                                            "Name": "SimpleSmtpClientSink",
-                                            "Args": {
-                                                "host": "smtp.gmail.com",
-                                                "useSsl": true,
-                                                "userName": "anyapi.api.call@gmail.com",
-                                                "password": "Widecoup1",
-                                                "from": "anyapi.api.call@gmail.com",
-                                                "to": "dev@natec.tech",
-                                                "subject": "ServiceHost serilog",
-                                                "port": 465,
-                                                "smtpLog": "./Logs/smtp.log"
-                                            }
-                                        }
-                                    ]
-                                }
-                            }
-                        ],
-                        "Filter": [
-                            {
-                                "Name": "ByIncludingOnly",
-                                "Args": {
-                                    "expression": "EventSourceId = 'EmailCritical'"
-                                }
-                            },
-                            {
-                                "Name": "EveryN",
-                                "Args": {
-                                    "maximumRate": 3
-                                }
-                            }
-                        ]
-                    }
-                }
-            }
-        ]
-    },
-    "Tasks": {
-        "SystemAssociations": [
-            {
-                "Id": 1,
-                "ConnectionName": "Ucp"
-            },
-            {
-                "Id": 204,
-                "ConnectionName": "Widecoup",
-                "ProceduresMapping": {
-                    "GetTaskData": "p_ucp_get_TaskData",
-                    "GetTaskListId": "p_srh_get_ListID",
-                    "GetTaskProcessList": "p_ucp_get_TaskProcessList",
-                    "GetTasks": "p_get_Tasks",
-                    "SetServiceTask": "p_ucp_set_ServiceTask"
-                }
-            }
-        ],
-        "HttpClients": [
-            {
-                "Name": "workflow_service",
-                "Timeout": 30000,
-                "BaseAddress": "http://api:5000/api/v0/bpmn/flowdefinitions/",
-                "ClientType": "simple",
-                "Headers": {
-                    "Authorization": "Basic ZHNoZXJzaG5vdjpXaWRlY291cDE="
-                }
-            },
-            {
-                "Name": "defaultclient",
-                "Timeout": 30000,
-                "BaseAddress": "http://localhost/FCS_HEX/ADD_HEX_REQUEST?LOGIN=FCS_HEX2BIS&PASSWORD=1111&CHANNEL=WWW"
-            },
-            {
-                "Name": "plantuml_check",
-                "Timeout": 30000,
-                "BaseAddress": "http://plantuml:8080"
-            },
-            {
-                "Name": "local",
-                "Timeout": 30000,
-                "BaseAddress": "http://servicehost:7000"
-            }
-        ],
-        "HealthCheck": {
-            "http": {
-                "HttpClient": "plantuml_check"
-            }
-        },
-        "TaskProducers": {
-            "AccountBilling": null,
-            "Provisioning": null,
-            "XmlBills": null,
-            "ServiceStatusChange": null,
-            "SMTP.Notification": {
-                "Name": "SMTPNotification_PRODUCER",
-                "ClassName": "Natec.Services.GenericTaskCoordinatorProducer",
-                "Config": {
-                    "QueuedTaskLimit": 500,
-                    "MaxDegreeOfParallelism": 15,
-                    "ReadTaskInfoTimeOut": 1800000,
-                    "CommandTimeOut": 1800000
-                },
-                "Nested": {
-                    "SMTP.Notification": {
-                        "ClassName": "Natec.Services.SMTPNotificationHandler",
-                        "Config": {
-                            "SendMail": true,
-                            "MailAddressFrom.Address": "anyapi.api.call@gmail.com",
-                            "MailAddressFrom.DisplayName": "no-reply-mef-dev-demo",
-                            "SmtpClient.DeliveryMethod": "Network",
-                            "SmtpClient.EnableSsl": true,
-                            "SmtpClient.Host": "smtp.gmail.com",
-                            "SmtpClient.Port": 465,
-                            "SmtpClient.UserName": "anyapi.api.call@gmail.com",
-                            "SmtpClient.Password": "Widecoup1",
-                            "TemplatePath": "{ContentRootPath}/Templates",
-                            "Default.BaseUri": "http://api:5000"
-                        }
-                    }
-                }
-            },
-            "WorkflowEvent": {
-                "Name": "WorkflowEvent_PRODUCER",
-                "ClassName": "Natec.Services.WorkflowEventsProducer",
-                "Config": {
-                    "QueuedTaskLimit": 500,
-                    "MaxDegreeOfParallelism": 25,
-                    "ReadTaskInfoTimeOut": 1800000,
-                    "CommandTimeOut": 1800000
-                }
-            },
-            "any": {
-                "Name": "Default_PRODUCER",
-                "ClassName": "Natec.Services.GenericTaskCoordinatorProducer",
-                "Config": {
-                    "QueuedTaskLimit": 500,
-                    "MaxDegreeOfParallelism": 15,
-                    "ReadTaskInfoTimeOut": 1800000,
-                    "CommandTimeOut": 1800000
-                }
-            }
-        },
-        "BackgroundServices": {
-            "AccountBilling": null,
-            "Provisioning": null,
-            "XmlBills": null,
-            "ServiceStatusChange": null,
-            "SMTP.Notification1": {
-                "ClassName": "Natec.Services.SqlTaskReader",
-                "Config": {
-                    "Interval": 65000,
-                    "ErrFormat": "json",
-                    "Lang": "en",
-                    "MaxCount": 100,
-                    "SystemId": 1,
-                    "tsk_ProcessName": "SMTP.Notification"
-                }
-            },
-            "SMTP.Notification204": null,
-            "WorkflowEvent": {
-                "ClassName": "Natec.Services.WorkflowEventsService",
-                "Config": {
-                    "Interval": 900
-                },
-                "Settings": {
-                    "KafkaReaders": [
-                        [
-                            {
-                                "Config": {
-                                    "BootstrapServers": "pkc-56d1g.eastus.azure.confluent.cloud:9092",
-                                    "SecurityProtocol": 3,
-                                    "SaslMechanism": 1,
-                                    "SaslUsername": "72XDTH36UDGLQMU6",
-                                    "SaslPassword": "u9lJsmQWh6ulBFX0IQBFvbDKKVNSex7xxsj2RsktfpZSsTRtARf+wvobHxy1nRiO"
-                                },
-                                "Name": "eventHub-natec",
-                                "Topic": "mefdev"
-                            }
-                        ]
-                    ]
-                }
-            },
-            "StatisticObserver": {
-                "ClassName": "Natec.Services.StatisticObserver",
-                "Config": {
-                    "Interval": 600000
-                },
-                "Nested": {
-                    "StatisticWriter": {
-                        "ClassName": "Natec.Services.SerilogFromStatisticControllerWriter",
-                        "Settings": {
-                            "Serilog": {
-                                "Using": [
-                                    "Serilog.Sinks.Console",
-                                    "Widecoup.ServiceHost"
-                                ],
-                                "MinimumLevel": "Information",
-                                "WriteTo": [
-                                    {
-                                        "Name": "Logger",
-                                        "Args": {
-                                            "configureLogger": {
-                                                "WriteTo": [
-                                                    {
-                                                        "Name": "Aac",
-                                                        "Args": {
-                                                            "configure": [
-                                                                {
-                                                                    "Name": "SimpleSmtpClientSink",
-                                                                    "Args": {
-                                                                        "host": "smtp.gmail.com",
-                                                                        "useSsl": true,
-                                                                        "userName": "anyapi.api.call@gmail.com",
-                                                                        "password": "Widecoup1",
-                                                                        "from": "anyapi.api.call@gmail.com",
-                                                                        "to": "dev@natec.tech",
-                                                                        "subject": "Service Host Statistics",
-                                                                        "port": 465,
-                                                                        "htmlBody": true,
-                                                                        "smtpLog": "./Logs/smtp_stat.log"
-                                                                    }
-                                                                }
-                                                            ]
-                                                        }
-                                                    }
-                                                ],
-                                                "Filter": [
-                                                    {
-                                                        "Name": "ByIncludingOnly",
-                                                        "Args": {
-                                                            "expression": "EventSourceId = 'EmailCritical'"
-                                                        }
-                                                    }
-                                                ]
-                                            }
-                                        }
-                                    }
-                                ]
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-   }
-
+nameOverride: ''
+fullnameOverride: ''
 replicaCount: 1
-
+revisionHistoryLimit: 3
 image:
   repository: digitalbss/servicehost
-  pullPolicy: IfNotPresent
-  # Overrides the image tag whose default is the chart appVersion.
-  tag: "latest"
-serviceAccount:
-  # Specifies whether a service account should be created
-  create: true
-  # Annotations to add to the service account
-  annotations: {}
-  # The name of the service account to use.
-  # If not set and create is true, a name is generated using the fullname template
-  name: "servicehost"
-
-podAnnotations: {}
-
-podSecurityContext: {}
-  # fsGroup: 2000
-
-securityContext:
-  privileged: true
-  # capabilities:
-  #   drop:
-  #   - ALL
-  # readOnlyRootFilesystem: true
-  # runAsNonRoot: true
-  # runAsUser: 1000
-
-#ContainerPort
-httpPort: 7000 
-
+  tag: latest
+  pullPolicy: Always
+imagePullSecrets: []
+containerPort: 7000
 service:
-  name: servicehost
-  type: LoadBalancer
-  port: 84
-ingress:
-  enabled: false
-  className: "nginx"
-  annotations:
-    cert-manager.io/issuer: letsencrypt-prod
-
-  hosts:
-    - host: service.example.com
-      paths:
-        - path: /
-          pathType: ImplementationSpecific
-
-  tls:
-    - secretName: ingress-service-production
-      hosts:
-        - service.example.com
-
-volumes:
-  - name: config-volume
-    configMap:
-      name: servicehost-config
-  - name: mefdev-storage
-    hostPath:
-      path: /mefdev/mefdev-storage
-
-volumeMounts:
-  - name: config-volume
+  type: ClusterIP
+  port: 7000
+  nodePort: null
+  annotations: {}
+serviceAccount:
+  create: true
+  name: ''
+  annotations: {}
+automountServiceAccountToken: false
+podLabels: {}
+podAnnotations: {}
+podSecurityContext:
+  fsGroup: 1000
+securityContext:
+  allowPrivilegeEscalation: false
+deployment:
+  strategy:
+    type: Recreate
+terminationGracePeriodSeconds: 60
+env:
+  ASPNETCORE_URLS: http://+:7000
+  ASPNETCORE_ENVIRONMENT: Production
+  TZ: UTC
+  ConnectionStrings__Ucp:
+    valueFrom:
+      secretKeyRef:
+        name: servicehost-secrets
+        key: csUcp
+  ConnectionStrings__Widecoup:
+    valueFrom:
+      secretKeyRef:
+        name: servicehost-secrets
+        key: csWidecoup
+envFrom: []
+command: []
+args: []
+initContainers:
+- name: prepare-shared-config
+  image: digitalbss/api:latest
+  imagePullPolicy: Always
+  command:
+  - sh
+  - -ec
+  - umask 0002; mkdir -p /shared-front/config /shared-front/logs; test -w /shared-front/config
+  securityContext:
+    runAsUser: 1655
+    runAsGroup: 1000
+    runAsNonRoot: true
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+      - ALL
+  resources:
+    requests:
+      cpu: 10m
+      memory: 32Mi
+    limits:
+      cpu: 100m
+      memory: 128Mi
+  volumeMounts:
+  - name: front
+    mountPath: /shared-front
+lifecycle: {}
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 1000m
+    memory: 1Gi
+startupProbe:
+  tcpSocket:
+    port: http
+  periodSeconds: 5
+  failureThreshold: 60
+readinessProbe:
+  tcpSocket:
+    port: http
+  periodSeconds: 10
+livenessProbe: {}
+config:
+  enabled: true
+  existingConfigMap: ''
+  existingSecret: ''
+  data: {}
+  mounts:
+  - key: appsettings.json
     mountPath: /app/appsettings.json
-    subPath: appsettings.json
-  - name: mefdev-storage
-    mountPath: /mefdev_storage/packages
-
-
-## Persist data to a persistent volume
+  appsettings:
+    StoredFilesPath: /files
+    DocIntegrationPath: /mefdev_storage/packages
+    DocIntegrationUrl: https://knowledge-graph.example.com/packages
+    PlantUMLUrl: http://plantuml:8080
+    Port: 7000
+    ResetCounters: false
+    EnableTrace: false
+    ConnectionStrings:
+      Widecoup: ''
+      Ucp: ''
+    Logging:
+      LogLevel:
+        Default: Information
+        System: Information
+        Microsoft: Warning
+    Diagnostic:
+      Serilog:
+        Using:
+        - Serilog.Sinks.Console
+        - Widecoup.ServiceHost
+        MinimumLevel: Information
+        WriteTo:
+        - Name: File
+          Args:
+            path: /storage/ProdK8S/logs/sql_report_log.txt
+            fileSizeLimitBytes: '10000000'
+            rollingInterval: Day
+            retainedFileCountLimit: '20'
+            rollOnFileSizeLimit: 'true'
+            shared: 'true'
+            flushToDiskInterval: 00:00:01
+            outputTemplate: '{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level:u3}] {Message:lj} <{ThreadId}><{ThreadName}>{NewLine}{Exception}'
+    Serilog:
+      Using:
+      - Serilog.Sinks.Console
+      - Widecoup.ServiceHost
+      MinimumLevel: Information
+      WriteTo:
+      - Name: Async
+        Args:
+          configure:
+          - Name: Console
+          - Name: File
+            Args:
+              path: /storage/ProdK8S/logs/servicehost-async.log
+              rollingInterval: Day
+              retainedFileCountLimit: 7
+      - Name: Console
+        Args:
+          outputTemplate: '{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level:u3}] {Message:lj} <{ThreadId}><{ThreadName}>{NewLine}{Exception}'
+      - Name: File
+        Args:
+          path: /storage/ProdK8S/logs/servicehost.log
+          fileSizeLimitBytes: '10000000'
+          rollingInterval: Day
+          retainedFileCountLimit: '20'
+          rollOnFileSizeLimit: 'true'
+          shared: 'true'
+          flushToDiskInterval: 00:00:01
+          outputTemplate: '{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level:u3}] {Message:lj} <{ThreadId}><{ThreadName}>{NewLine}{Exception}'
+      - Name: Logger
+        Args:
+          configureLogger:
+            WriteTo:
+            - Name: Async
+              Args:
+                configure:
+                - Name: SimpleSmtpClientSink
+                  Args:
+                    to: admin@example.com
+                    frontDomain: https://apps.example.com
+                    host: smtp.example.com
+                    port: 587
+                    useSsl: true
+                    userName: ''
+                    password: ''
+                    from: noreply@example.com
+            Filter:
+            - Name: ByIncludingOnly
+              Args:
+                expression: EventSourceId = 'EmailCritical'
+            - Name: EveryN
+              Args:
+                maximumRate: 3
+    Tasks:
+      SystemAssociations:
+      - Id: 1
+        ConnectionName: Ucp
+      - Id: 204
+        ConnectionName: Widecoup
+        ProceduresMapping:
+          GetTaskData: p_ucp_get_TaskData
+          GetTaskListId: p_srh_get_ListID
+          GetTaskProcessList: p_ucp_get_TaskProcessList
+          GetTasks: p_get_Tasks
+          SetServiceTask: p_ucp_set_ServiceTask
+      HttpClients:
+      - Name: workflow_service
+        Timeout: 30000
+        BaseAddress: http://api:5000/api/v0/bpmn/flowdefinitions/
+        ClientType: simple
+        Headers:
+          Authorization: ''
+        HeadersFromSecret:
+          Authorization: workflowServiceAuth
+      - Name: defaultclient
+        Timeout: 30000
+        BaseAddress: http://api:5000
+      - Name: local
+        Timeout: 30000
+        BaseAddress: http://servicehost:7000
+      - Name: eventhub
+        Timeout: 30000
+        BaseAddress: http://eventhub:8080/api/kafka
+      - Name: api_healthcheck
+        Timeout: 30000
+        BaseAddress: http://api:5000/api/v0/live
+      HealthCheck:
+        Api:
+          HttpClient: api_healthcheck
+      TaskProducers:
+        AccountBilling:
+          Name: AccBill_PRODUCER
+          ClassName: Natec.Services.GenericTaskCoordinatorProducer
+          Config:
+            QueuedTaskLimit: 3
+            MaxDegreeOfParallelism: 3
+            ReadTaskInfoTimeOut: 1800000
+            CommandTimeOut: 1800000
+        Provisioning:
+          Name: Provisioning_PRODUCER
+          ClassName: Natec.Services.GenericTaskCoordinatorProducer
+          Config:
+            QueuedTaskLimit: 500
+            MaxDegreeOfParallelism: 25
+            ReadTaskInfoTimeOut: 1800000
+            CommandTimeOut: 1800000
+          Nested:
+            Provisioning:
+              ClassName: Natec.Services.ProvisioningTaskDataHandler
+              Config:
+                HttpConfigs: defaultclient
+                InterruptErrorNumber: 1001
+                SetExternalSystemToken: true
+        HTTP.Request:
+          Name: HTTPRequest_PRODUCER
+          ClassName: Natec.Services.GenericTaskCoordinatorProducer
+          Config:
+            QueuedTaskLimit: 500
+            MaxDegreeOfParallelism: 25
+            ReadTaskInfoTimeOut: 1800000
+            CommandTimeOut: 1800000
+          Nested:
+            HTTP.Request:
+              ClassName: Natec.Services.ProvisioningTaskDataHandler
+              Config:
+                HttpConfigs: eventhub
+                InterruptErrorNumber: 1001
+                SetExternalSystemToken: false
+                SuccessfulCode: 200,201
+        XmlBills:
+          Name: XmlBills_PRODUCER
+          ClassName: Natec.Services.GenericTaskCoordinatorProducer
+          Config:
+            QueuedTaskLimit: 5
+            MaxDegreeOfParallelism: 10
+            ReadTaskInfoTimeOut: 1800000
+            CommandTimeOut: 1800000
+        ServiceStatusChange: null
+        SMTP.Notification:
+          Name: SMTPNotification_PRODUCER
+          ClassName: Natec.Services.GenericTaskCoordinatorProducer
+          Config:
+            QueuedTaskLimit: 500
+            MaxDegreeOfParallelism: 15
+            ReadTaskInfoTimeOut: 1800000
+            CommandTimeOut: 1800000
+          Nested:
+            SMTP.Notification:
+              ClassName: Natec.Services.SMTPNotificationHandler
+              Config:
+                TemplatePath: '{ContentRootPath}/Templates'
+                Default.BaseUri: https://apps.example.com
+                SendMail: false
+                MailAddressFrom:
+                  Address: noreply@example.com
+                  DisplayName: MEF
+                SmtpClient:
+                  DeliveryMethod: 0
+                  EnableSsl: true
+                  Host: smtp.example.com
+                  Port: 587
+                  UserName: ''
+                  Password: ''
+        WorkflowEvent:
+          Name: WorkflowEvent_PRODUCER
+          ClassName: Natec.Services.WorkflowEventsProducer
+          Config:
+            QueuedTaskLimit: 500
+            MaxDegreeOfParallelism: 25
+            ReadTaskInfoTimeOut: 1800000
+            CommandTimeOut: 1800000
+        any:
+          Name: Default_PRODUCER
+          ClassName: Natec.Services.GenericTaskCoordinatorProducer
+          Config:
+            QueuedTaskLimit: 500
+            MaxDegreeOfParallelism: 15
+            ReadTaskInfoTimeOut: 1800000
+            CommandTimeOut: 1800000
+      BackgroundServices:
+        PeriodicHealthCheckService:
+          ClassName: Natec.Services.PeriodicHealthCheckService
+          Config:
+            Interval: 21600000
+            FrontDomain: https://apps.example.com
+            EmailTo: admin@example.com
+        AccountBilling:
+          ClassName: Natec.Services.SqlTaskReader
+          Config:
+            Interval: 65000
+            ErrFormat: json
+            tsk_State: null
+            Lang: en
+            MaxCount: 100
+            SystemId: 204
+            tsk_ProcessName: AccountBilling
+        Provisioning:
+          ClassName: Natec.Services.SqlTaskReader
+          Config:
+            Interval: 65000
+            ErrFormat: json
+            tsk_State: null
+            Lang: en
+            MaxCount: 100
+            SystemId: 204
+            tsk_ProcessName: Provisioning
+        HTTP.Request:
+          ClassName: Natec.Services.SqlTaskReader
+          Config:
+            Interval: 5000
+            ErrFormat: json
+            tsk_State: null
+            Lang: en
+            MaxCount: 100
+            SystemId: 204
+            tsk_ProcessName: HTTP.Request
+        XmlBills:
+          ClassName: Natec.Services.SqlTaskReader
+          Config:
+            Interval: 15000
+            ErrFormat: json
+            tsk_State: null
+            Lang: ek
+            MaxCount: 100
+            SystemId: 204
+            tsk_ProcessName: XmlBills
+        ServiceStatusChange: null
+        SMTP.Notification1:
+          ClassName: Natec.Services.SqlTaskReader
+          Config:
+            Interval: 65000
+            ErrFormat: json
+            Lang: en
+            MaxCount: 100
+            SystemId: 1
+            tsk_ProcessName: SMTP.Notification
+        SMTP.Notification204:
+          ClassName: Natec.Services.SqlTaskReader
+          Config:
+            Interval: 65000
+            ErrFormat: json
+            Lang: en
+            MaxCount: 100
+            SystemId: 204
+            tsk_ProcessName: SMTP.Notification
+        WorkflowEvent:
+          ClassName: Natec.Services.WorkflowEventsService
+          Config:
+            Interval: 900
+          Settings:
+            KafkaReaders:
+            - Config:
+                BootstrapServers: kafka:9092
+              Name: eventhub
+              Topic: mef-events
+        StatisticObserver:
+          ClassName: Natec.Services.StatisticObserver
+          Config:
+            Interval: 600000
+          Nested:
+            StatisticWriter:
+              ClassName: Natec.Services.SerilogFromStatisticControllerWriter
+              Settings:
+                Serilog:
+                  Using:
+                  - Serilog.Sinks.Console
+                  - Widecoup.ServiceHost
+                  MinimumLevel: Information
+                  WriteTo:
+                  - Name: SimpleSmtpClientSink
+                    Args:
+                      to: admin@example.com
+                      frontDomain: https://apps.example.com
+                      host: smtp.example.com
+                      port: 587
+                      useSsl: true
+                      userName: ''
+                      password: ''
+                      from: noreply@example.com
+                  Filter:
+                  - Name: ByIncludingOnly
+                    Args:
+                      expression: EventSourceId = 'EmailCritical'
+  disabledLogSinks:
+  - 0
+  - 3
+  disabledTaskProducers:
+  - AccountBilling
+  - Provisioning
+  - HTTP.Request
+  - XmlBills
+  - ServiceStatusChange
+  - SMTP.Notification
+  - WorkflowEvent
+  - any
+  disabledBackgroundServices:
+  - PeriodicHealthCheckService
+  - AccountBilling
+  - Provisioning
+  - HTTP.Request
+  - XmlBills
+  - ServiceStatusChange
+  - SMTP.Notification1
+  - SMTP.Notification204
+  - WorkflowEvent
+  - StatisticObserver
 persistence:
   enabled: false
-  ## database data Persistent Volume Storage Class
-  ## If defined, storageClassName: <storageClass>
-  ## If set to "-", storageClassName: "", which disables dynamic provisioning
-  ## If undefined (the default) or set to null, no storageClassName spec is
-  ##   set, choosing the default provisioner.  (gp2 on AWS, standard on
-  ##   GKE, AWS & OpenStack)
-  ##
-  # storageClass: "-"
-  accessMode: ReadWriteMany
+  existingClaim: ''
+  storageClass: ''
+  accessModes:
+  - ReadWriteOnce
   size: 1Gi
-
-resources: {}
-  # We usually recommend not to specify default resources and to leave this as a conscious
-  # choice for the user. This also increases chances charts run on environments with little
-  # resources, such as Minikube. If you do want to specify resources, uncomment the following
-  # lines, adjust them as necessary, and remove the curly braces after 'resources:'.
-  # limits:
-  #   cpu: 100m
-  #   memory: 128Mi
-  # requests:
-  #   cpu: 100m
-  #   memory: 128Mi
-env:
-    ASPNETCORE_ENVIRONMENT: "Production"
-    ASPNETCORE_SETTINGS: "ProdGCP"
-    ASPNETCORE_URLS: "http://*:7000"
-
+  retain: true
+  annotations: {}
+  mountPath: /storage
+  subPath: ''
+volumes:
+- name: back
+  persistentVolumeClaim:
+    claimName: back
+- name: front
+  persistentVolumeClaim:
+    claimName: front
+volumeMounts:
+- name: back
+  mountPath: /mefdev_storage/packages
+- name: front
+  mountPath: /storage/ProdK8S
+- name: front
+  mountPath: /files/config
+  subPath: config
+nodeSelector:
+  kubernetes.io/os: linux
+tolerations: []
+affinity: {}
+dnsConfig: {}
 autoscaling:
   enabled: false
-  minReplicas: 2
-  maxReplicas: 10
-  targetCPUUtilizationPercentage: 90
-  # targetMemoryUtilizationPercentage: 80
-
-nodeSelector: {}
-
-tolerations: []
-
-affinity: {}
+  minReplicas: 1
+  maxReplicas: 3
+  targetCPUUtilizationPercentage: 80
+networking:
+  mode: none
+ingress:
+  className: ''
+  annotations: {}
+  hosts: []
+  tls: []
+gateway:
+  parentRefs: []
+  hostnames: []
+  rules:
+  - matches:
+    - path:
+        type: PathPrefix
+        value: /
