@@ -63,8 +63,10 @@ readinessProbe:
     command:
     - sh
     - -ec
-    - SQLCMDPASSWORD="$MSSQL_SA_PASSWORD" /opt/mssql-tools/bin/sqlcmd -S localhost
-      -U sa -C -b -l 3 -Q "SELECT 1" >/dev/null
+    - |
+      sqlcmd=/opt/mssql-tools18/bin/sqlcmd
+      [ -x "$sqlcmd" ] || sqlcmd=/opt/mssql-tools/bin/sqlcmd
+      SQLCMDPASSWORD="$MSSQL_SA_PASSWORD" "$sqlcmd" -S localhost -U sa -C -b -l 3 -Q "SELECT 1" >/dev/null 2>&1
   periodSeconds: 10
   timeoutSeconds: 5
 livenessProbe: {}

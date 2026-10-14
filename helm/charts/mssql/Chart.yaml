@@ -2,5 +2,5 @@ apiVersion: v2
 name: mssql
 description: MEF.DEV mssql deployment
 type: application
-version: 2.0.0
+version: 2.0.1
 kubeVersion: '>=1.28.0-0'

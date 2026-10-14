@@ -38,7 +38,8 @@
               "uniqueItems": true,
               "items": {
                 "enum": [
-                  "ReadWriteMany"
+                  "ReadWriteMany",
+                  "ReadWriteOnce"
                 ]
               }
             },
@@ -74,7 +75,8 @@
               "uniqueItems": true,
               "items": {
                 "enum": [
-                  "ReadWriteMany"
+                  "ReadWriteMany",
+                  "ReadWriteOnce"
                 ]
               }
             },
@@ -110,7 +112,8 @@
               "uniqueItems": true,
               "items": {
                 "enum": [
-                  "ReadWriteMany"
+                  "ReadWriteMany",
+                  "ReadWriteOnce"
                 ]
               }
             },

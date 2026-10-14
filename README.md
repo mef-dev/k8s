@@ -11,10 +11,13 @@
 A complete installation guide for the web frontend, API, background services,
 document service, SQL Server and PostgreSQL with pgvector. Choose your Ingress or
 Gateway controller and configure each component through a single values file.
+Microsoft Entra ID is the primary sign-in method; each installation uses its own App Registration.
 
-**[Start installation](#1-prepare-the-repository-and-namespace)** ·
+**[Install with Bash](#install-with-bash)** ·
+**[Manual installation](#1-prepare-the-repository-and-namespace)** ·
 **[Connect ingress](#networking)** ·
 **[Configure applications](#application-configuration)** ·
+**[Microsoft sign-in](#microsoft-entra-id)** ·
 **[Troubleshoot](#troubleshooting)**
 
 ---
@@ -25,7 +28,7 @@ Gateway controller and configure each component through a single values file.
 | :--- | :--- | :--- |
 | [Requirements](#prerequisites) | [Update an application](#update-an-application) | [Application settings](#application-configuration) |
 | [1. Repository & namespace](#1-prepare-the-repository-and-namespace) | [Run a database migration](#database-update) | [Values reference](#configuration) |
-| [2. Values & Secrets](#2-configure-values-and-secrets) | [Back up & restore](#backup-and-restore) | [Storage & shared files](#storage-and-databases) |
+| [2. Entra ID, values & Secrets](#2-configure-values-and-secrets) | [Back up & restore](#backup-and-restore) | [Storage & shared files](#storage-and-databases) |
 | [3. Databases](#3-install-databases) | [Upgrade older charts](#upgrade-and-migration) | [Container images](#images) |
 | [4. Initial migration](#4-run-the-database-migration) | [Uninstall applications](#uninstall-applications) | [Ingress & Gateway profiles](#networking) |
 | [5. Applications](#5-install-applications) | [Troubleshooting](#troubleshooting) | [Optional Secret bindings](#optional-secret-bindings) |
@@ -54,6 +57,7 @@ flowchart LR
 ```text
 k8s/
 ├── README.md
+├── install.sh          # Guided initial installation
 └── helm/
     ├── charts/          # Component Helm charts
     └── values/          # One complete YAML file per component
@@ -72,7 +76,7 @@ k8s/
 | Selectable routing | Profiles in `helm/values/ingress/` |
 | Optional diagrams | Install `plantuml` when diagram rendering is needed |
 
-**Installation order:** namespace → values & Secrets → shared PVCs → databases → migration → applications → routing.
+**Installation order:** namespace → Entra ID registration → values & Secrets → shared PVCs → databases → migration → applications → routing → Microsoft sign-in.
 
 > [!NOTE]
 > Output blocks illustrate the expected result; they are not execution logs.
@@ -91,7 +95,8 @@ k8s/
 | Persistent storage | An RWX-capable StorageClass for shared application files; database StorageClasses or existing PVCs |
 | Public access | Your application domains, DNS records and a TLS certificate covering those domains |
 | Load balancing | A LoadBalancer implementation, or the documented ClusterIP / port-forward option |
-| Application setup | Database schema/data, signing keys when required, and initial user accounts |
+| Microsoft sign-in | Your Entra tenant, permission to register an application, and its client secret |
+| Application setup | Database schema/data, the API image's matching encrypted configuration/key pair, and initial user accounts |
 
 Start with one replica per component. SQL Server needs at least **2 GiB** for its
 process; allow additional capacity for the operating system, applications and routing
@@ -100,7 +105,7 @@ controller. Set resource requests and limits for your workload.
 > [!IMPORTANT]
 > The supplied SQL Server values select **Developer edition**, for non-production use.
 > Choose the appropriate edition and licensing before a production deployment.
-> Chart defaults use `ACCEPT_EULA: N`; installation values explicitly set it to `Y`.
+> Installation values set `ACCEPT_EULA: Y`. Use them only after accepting the SQL Server license terms.
 
 The database charts deploy single instances. Plan backups and recovery separately;
 `local-path` storage is tied to its node. Shared application files require storage
@@ -108,6 +113,172 @@ accessible to all participating Pods. See [storage and databases](#storage-and-d
 
 ---
 
+
+<a id="install-with-bash"></a>
+## Install with Bash
+
+For a new installation, use [install.sh](install.sh). Fill one local configuration
+file; the installer prepares complete Helm values, separate Secrets and routing,
+then installs the components in the required order. The manual guide below remains
+available for existing deployments and later database migrations.
+
+Prepare a Kubernetes cluster, storage, DNS and a TLS certificate first. The cluster
+must have a LoadBalancer implementation when installing a controller. DNS must point
+`apps`, `api`, `knowledge-graph` and `servicehost` subdomains at your ingress address.
+The supplied certificate must cover those hosts; include `plantuml` if enabling it.
+The installer does not manage external DNS providers or issue certificates.
+
+Required local tools: **Bash 4+, Helm 3, kubectl, Python 3 with PyYAML, OpenSSL,
+curl and flock**. On Debian/Ubuntu, PyYAML is provided by `python3-yaml` and flock
+by `util-linux`. Azure CLI is also required when the installer creates the Entra app.
+The default NGINX Gateway Fabric 2.6.7 controller requires **Kubernetes 1.31+**;
+the application charts require 1.28+. Check the chosen controller's compatibility
+when selecting another profile.
+The pinned Envoy Gateway v1.9.2 installer uses its
+[tested Kubernetes range 1.33–1.36](https://gateway.envoyproxy.io/news/releases/matrix/).
+
+### 1. Create and fill the local configuration
+
+```bash
+git clone --branch dev https://github.com/mef-dev/k8s.git
+cd k8s
+./install.sh --init
+```
+
+Edit `.local/install.env` with your text editor. Keep values quoted as in the file.
+This directory is ignored by Git; credentials belong here, not in `install.sh`.
+
+| Required field | What to enter |
+| :--- | :--- |
+| `MEF_KUBE_CONTEXT` | Exact target context from `kubectl config get-contexts -o name` |
+| `MEF_DOMAIN` | Your base domain, for example `platform.company.com`; URLs become `https://apps.platform.company.com`, `https://api.platform.company.com`, etc. |
+| `MEF_SHARED_STORAGE_CLASS` | RWX-capable class for the common `front`, `back` and `api-config` disks |
+| `MEF_DB_STORAGE_CLASS` | StorageClass for SQL Server and PostgreSQL |
+| `MEF_TLS_CERT_FILE`, `MEF_TLS_KEY_FILE` | Paths to the certificate/full chain and its matching unencrypted PEM key |
+| `MEF_ENTRA_TENANT_ID` | Your Directory (tenant) ID from Microsoft Entra Overview |
+| `MEF_ACCEPT_SQL_EULA` | `Y` after accepting the SQL Server license terms |
+| `MEF_MSSQL_EDITION` | `Developer` for non-production, or the edition/product key licensed for your installation |
+
+By default, `MEF_ENTRA_MODE='create'` creates a separate **single-tenant Web App
+Registration** with delegated Graph `User.Read` and the exact API callback. Sign in
+to your tenant before running the installer:
+
+```bash
+# Replace the value with your Directory (tenant) ID.
+az login --tenant YOUR_TENANT_ID --allow-no-subscriptions
+```
+
+The Azure identity needs permission to create App Registrations. The generated client
+secret is valid for 180 days and is saved privately in `.local/installer/entra.json`.
+The installer reuses this registration and credential on repeat runs. Your tenant's
+consent policy still applies at the first Microsoft sign-in.
+
+To use an existing registration instead, set these fields in `.local/install.env`:
+
+```bash
+MEF_ENTRA_MODE='existing'
+MEF_ENTRA_CLIENT_ID='YOUR_APPLICATION_CLIENT_ID'
+MEF_ENTRA_CLIENT_SECRET='YOUR_CLIENT_SECRET_VALUE'
+```
+
+Prepare its Web callback and `User.Read` permission as described in
+[Microsoft Entra ID](#microsoft-entra-id). Existing mode does not require Azure CLI.
+
+### 2. Check the configuration and install
+
+```bash
+./install.sh --check
+./install.sh
+```
+
+If a required field is empty or invalid, the installer stops and lists every field
+that needs attention, with a hint about where to obtain the value. `--check` verifies
+the certificate, target cluster, storage classes and Azure login without changing
+remote resources. It cannot guarantee CSI RWX support or preapprove tenant consent.
+
+Expected missing-field message:
+
+```text
+ERROR: Fill or correct these fields in your local configuration:
+  - MEF_ENTRA_TENANT_ID: Directory (tenant) ID in Microsoft Entra Overview
+  - MEF_TLS_CERT_FILE: path to a PEM certificate/full chain covering ...
+```
+
+For a filled configuration, the installation performs:
+
+1. Create or reuse your Entra registration and configure the same tenant/client ID in API and Apps.
+2. Generate and retain database/bootstrap passwords; prepare matching application Secrets.
+3. Install the selected routing controller, or use your existing one.
+4. Create shared PVCs, install databases and complete the initial migration.
+5. Install API, Servicehost, Knowledge Graph and Apps; optionally install PlantUML.
+6. Wait for readiness and routing, then check the external HTTPS endpoints with certificate validation.
+
+Expected final result:
+
+```text
+==> Installation and HTTPS checks passed.
+Open https://apps.platform.company.com/login and choose Microsoft.
+```
+
+**OK:** the script exits successfully, Pods/PVCs are ready and the HTTPS checks pass.
+Complete Microsoft sign-in, initial account registration and platform setup in the
+browser. Authentication, tenant consent and company-specific integrations still need
+their normal administrator/user setup; the script does not submit browser forms.
+
+### Routing and storage choices
+
+| Field | Options |
+| :--- | :--- |
+| `MEF_ROUTING_PROFILE` | `gateway/nginx-gateway-fabric` (default), `gateway/envoy-gateway`, `gateway/traefik`, `classic/ingress-nginx`, `classic/traefik`, `classic/haproxy` |
+| `MEF_INSTALL_CONTROLLER` | `true` installs a dedicated controller; `false` uses an existing one |
+| `MEF_ROUTING_CLASS` | Existing GatewayClass/IngressClass name; leave empty for the profile default |
+| `MEF_INSTALL_PLANTUML` | `true` adds the diagram renderer and its route |
+| `MEF_NAMESPACE` | Defaults to `mef-dev`; use one separate checkout/state directory per installation |
+| `MEF_HTTPS_CA_FILE` | Optional private CA bundle for final HTTPS checks |
+
+Classic Traefik and HAProxy profiles use existing controllers and require
+`MEF_INSTALL_CONTROLLER='false'`. Controller installs use the pinned versions described
+in [networking](#networking). Existing controller/CRD ownership is preserved; compatible
+Gateway API CRDs are required when reusing a Gateway controller. NGF and Envoy profiles
+apply their 20 MiB upload-limit policies; Envoy uses the supplied HTTP/1.1 listener
+policy for enforcement. Use the manual profiles for different upload/HTTP protocol needs.
+
+For a single-node installation using `local-path`, explicitly set
+`MEF_SHARED_ACCESS_MODE='ReadWriteOnce'` and `MEF_NODE_NAME` to the node name. The
+installer pins all shared-volume consumers to that node. This provides shared files
+on that node, without multi-node RWX availability. Multi-node installs should retain
+`ReadWriteMany` and use an RWX-capable CSI backend.
+
+### Resume, inspect and keep credentials
+
+Run `./install.sh` again with the same configuration after correcting a failure.
+The installer retains passwords and refuses to take over an unrelated namespace.
+A migration with Helm status `deployed` is not rerun, including after its Job TTL expires.
+If local state records a completed migration but its Helm release is missing, the
+installer stops for manual inspection instead of replaying SQL changes. Missing or
+incomplete saved database passwords also stop the run; restore them from backup.
+Failed/pending migrations stop the installer for manual inspection; schema changes
+are never automatically rolled back. Subsequent intentional migrations use the
+[manual migration procedure](#database-update).
+
+`./install.sh --render` generates the local installation files and renders charts
+without changing Kubernetes or Azure. In create mode, Entra fields remain pending
+until a normal deployment creates the registration. Generated complete values are in
+`.local/installer/values/`, Secrets in `.local/installer/secrets/`; source values in
+`helm/values/` are unchanged. These are generated files: make installer choices in
+`install.env`, or switch to the manual workflow for advanced application customizations.
+
+Back up `.local/install.env` and `.local/installer/` securely. They contain database
+passwords, the Entra credential and installation identity. Losing those files does
+not rotate credentials or delete remote resources. The installer does not delete
+resources automatically after a failed installation.
+
+For cluster-only preparation without working external DNS/TLS, explicitly set
+`MEF_VERIFY_HTTPS='false'`. The result then says external verification is **PENDING**;
+it is not a completed public-access check. Keep verification enabled for a normal
+public deployment.
+
+---
 
 ## 1. Prepare the repository and namespace
 
@@ -154,6 +325,12 @@ set an available class in each persistent component's values, or provide an `exi
 > [Secret templates](helm/values/secrets/) and choose routing settings from
 > [ingress profiles](helm/values/ingress/).
 
+The complete installation configuration is stored only in `helm/values/<component>.yaml`.
+Files named `values.yaml` inside the charts contain only a pointer and an example command;
+pass the chosen complete file through `-f` on every Helm install, upgrade, lint or template call.
+Routing profiles are additional overrides and must follow the complete component file.
+Keep actual credentials in separate local Secret files.
+
 Set storage classes, resource limits, domains, API URLs and integration settings.
 Review migration settings before using an existing database. See [application configuration](#application-configuration).
 
@@ -169,6 +346,91 @@ Before applying resources, review these installation-specific settings:
 | Background work | Servicehost task definitions, activation lists and integration credentials |
 | Public routing | Domain names, TLS Secret and the selected IngressClass / Gateway |
 
+<a id="microsoft-entra-id"></a>
+### Configure Microsoft Entra ID
+
+Microsoft Entra ID is enabled by default and is the primary way to sign in.
+Create an App Registration owned by the administrator of this installation.
+The API exchanges the authorization code and reads the user's Microsoft Graph profile;
+Apps contains only the public client ID and authority URL.
+
+**1. Register the application.** In Microsoft Entra admin center, open
+**App registrations → New registration**. Select **Accounts in this organizational
+directory only** for an installation restricted to your tenant. Record the
+**Application (client) ID** and **Directory (tenant) ID**.
+
+Under **Authentication**, add platform **Web** with the exact redirect URI:
+
+```text
+https://api.example.com/api/v0/auth/signin-entraid
+```
+
+Use the public API hostname. Leave implicit access-token/ID-token grants and public
+client flows disabled. The API uses the authorization code flow with a client secret.
+Under **API permissions**, add Microsoft Graph **Delegated → User.Read**. Follow your
+tenant's user/admin consent policy. Under **Certificates & secrets**, create a client
+secret and save its **Value**, expiry date and owner in your secret manager.
+See Microsoft's [registration guide](https://learn.microsoft.com/en-us/graph/auth-register-app-v2)
+and [redirect URI settings](https://learn.microsoft.com/en-us/entra/identity-platform/how-to-add-redirect-uri).
+
+Use the following mapping when filling the files:
+
+| Registration field | Put it in |
+| :--- | :--- |
+| Directory (tenant) ID | Replace `REPLACE_ENTRA_TENANT_ID` in both API and Apps authority URLs |
+| Application (client) ID | Replace `REPLACE_ENTRA_CLIENT_ID` in both API and Apps |
+| Client secret **Value** | `.local/secrets/api-secrets.yaml` → `stringData.entraClientSecret` |
+| API redirect URI | Entra Web platform → your API URL ending in `/api/v0/auth/signin-entraid` |
+
+**2. Configure API.** Edit these fields in the complete `helm/values/api.yaml`;
+retain its other settings and Secret bindings:
+
+```yaml
+config:
+  appsettings:
+    AuthOptions:
+      Issuer: https://api.example.com
+      Audience:
+        - https://apps.example.com
+      Domain: example.com
+      EntraIdAuth: true
+      EntraIdAuthUrl: https://login.microsoftonline.com/REPLACE_ENTRA_TENANT_ID
+      EntraId:
+        ClientId: REPLACE_ENTRA_CLIENT_ID
+        ClientSecret: ''
+```
+
+`EntraIdAuthUrl` is directly under `AuthOptions`. Keep `EntraId.ClientSecret` empty
+in values. In the next section, put the actual secret Value in the local Secret file,
+key `stringData.entraClientSecret`; the supplied environment binding reads it.
+Keep the secret in the API Secret and your secret manager.
+
+**3. Configure Apps.** Edit `config.data.config.json` in `helm/values/apps.yaml`:
+
+```json
+{
+  "apiUrl": "https://api.example.com",
+  "apiUrl2": "",
+  "EntraIdAuthClientId": "REPLACE_ENTRA_CLIENT_ID",
+  "LinkedInClientId": "",
+  "EntraIdAuthUrl": "https://login.microsoftonline.com/REPLACE_ENTRA_TENANT_ID",
+  "contactPhone": ""
+}
+```
+
+Use the same tenant ID and client ID in API and Apps. Keep the registered callback,
+API public hostname, Apps `apiUrl` and ingress TLS configuration consistent.
+The API reconstructs its callback from the request host/scheme, so the TLS-terminating
+proxy must preserve the host and forward `X-Forwarded-Proto: https`.
+For the supplied domains, keep `Settings.CookieOptions.Secure: true` and `SameSite: 0`
+(`None`), and allow the exact Apps origin in API `Audience` and any ingress CORS policy.
+Use Apps and API under the same site as shown (`apps.example.com` / `api.example.com`).
+
+Save the non-secret IDs/URLs in the component values and proceed to credential preparation below.
+API and Apps are installed in step 5, after the databases and schema are ready.
+Password login remains available for provisioned local administrator accounts;
+Microsoft is the primary login for users in this setup.
+
 ### Prepare credentials
 
 Copy Secret templates into the ignored local directory:
@@ -182,8 +444,9 @@ chmod 600 .local/secrets/*.yaml
 
 Replace every `REPLACE_*` marker in `.local/secrets/*.yaml`. Database passwords must
 match those in the API/servicehost connection strings. The bootstrap password is independent: it creates a SQL login, not a frontend user.
-Provision application users through your deployment's supported MEF account-provisioning
-process; these charts do not define a default web administrator account.
+Users create their MEF account through the Microsoft sign-in flow after installation.
+These charts do not define a default web administrator account; the first user proceeds
+to the platform setup wizard after account registration.
 Then apply the filled files:
 
 ```bash
@@ -199,9 +462,11 @@ NAME                  TYPE     DATA   AGE
 mssql-auth            Opaque   1      1m
 pgvector-auth         Opaque   1      1m
 db-update-bootstrap   Opaque   1      1m
-api-secrets           Opaque   2      1m
+api-secrets           Opaque   3      1m
 servicehost-secrets   Opaque   2      1m
 ```
+
+`api-secrets/entraClientSecret` is required. Use the client secret **Value**, not its Secret ID.
 
 **OK:** all five Secrets exist with the required keys. This listing hides their contents;
 Secret existence alone does not confirm a correct database password.
@@ -311,7 +576,11 @@ fails; do not start background processing against an incomplete schema. The comp
 Job is removed after its configured TTL. See [database update](#database-update).
 
 Before continuing, confirm that the database contains the schema and application data
-required for your deployment. See [database migration procedure](#database-update) for
+required for your deployment. The four `filegroups` settings configure
+`PFunction10`, `PFunction10D`, `PFunction10D14` and `PFunction10D14S`. Installation
+values set each first-dimension partition count to `1`; set a count to `0` to
+select the image default. Preserve the existing layout for an existing database.
+See [database migration procedure](#database-update) for
 existing databases and subsequent migrations.
 
 ## 5. Install applications
@@ -848,9 +1117,57 @@ is a background service; its root URL is not a required public web page.
 
 ---
 
+### Verify Microsoft sign-in
+
+Complete [networking](#networking) first: the Apps and API domains must resolve and
+serve HTTPS with a trusted certificate. Then follow the browser flow:
+
+Open `https://apps.example.com/login`, choose Microsoft and complete sign-in/consent.
+On a fresh database, complete the normal account-registration screen. The first
+account then reaches the platform setup wizard; on an existing installation,
+access follows its tenant and user permissions. Microsoft sign-in does not by itself
+complete root-tenant, Servicehost or SMTP setup.
+
+Expected browser Network results after login:
+
+```text
+GET  /api/v0/auth/signin-entraid    302  → Apps auth callback
+POST /api/v0/auth/verify/EntraId    200
+GET  /api/v0/account/organizations  200
+```
+
+The browser may receive `404` from `verify/EntraId` for a first-time user before completing account
+registration. **OK:** Apps opens the application/setup wizard, protected API requests
+succeed and reloading the page keeps the session. Check request paths/statuses without
+copying authorization codes, cookies, tokens or profile response bodies into reports.
+For secret rotation, update the local Secret, apply it and restart API before removing
+the old credential in Entra ID.
+For a Bash installation, create the replacement credential in the same App Registration,
+set `MEF_ENTRA_MODE='existing'`, its current client ID and the new secret Value in
+`.local/install.env`, then rerun `./install.sh`. It updates the API Secret and rolls
+out API using the credential fingerprint. Verify Microsoft sign-in before deleting
+the old Entra credential; keep existing mode so later runs retain the replacement.
+
+---
+
 ## Operations
 
 Use the same complete values file for each update. Database migrations are a separate, explicit operation.
+After a Bash installation, use `.local/installer/values/<component>.yaml` in the
+commands below: these files contain your domain, Entra IDs, storage and routing choices.
+Using the unchanged `helm/values/` templates would replace them with example settings.
+The installer regenerates its files on each run; use `install.env` for supported
+choices, or retain your customized values separately when switching to manual Helm operations.
+
+For a Bash installation, load your own local configuration before the operational commands:
+
+```bash
+source .local/install.env
+export KUBE_CONTEXT="$MEF_KUBE_CONTEXT"
+```
+
+For a manual installation, retain `KUBE_CONTEXT` from step 1. Commands below use
+`--namespace mef-dev`; if you changed `MEF_NAMESPACE`, use that namespace throughout.
 
 ### Update an application
 
@@ -859,9 +1176,14 @@ To fetch a newly published `latest` image when the tag string is unchanged, rest
 the Deployment after the Helm upgrade:
 
 ```bash
+# Manual installation:
+API_VALUES='helm/values/api.yaml'
+# After a Bash installation, use this instead:
+# API_VALUES='.local/installer/values/api.yaml'
+
 helm upgrade --install api helm/charts/api \
   --kube-context "$KUBE_CONTEXT" --namespace mef-dev \
-  --values helm/values/api.yaml --wait --timeout 10m
+  --values "$API_VALUES" --wait --timeout 10m
 kubectl --context "$KUBE_CONTEXT" --namespace mef-dev rollout restart deployment/api
 kubectl --context "$KUBE_CONTEXT" --namespace mef-dev rollout status deployment/api
 ```
@@ -883,15 +1205,21 @@ still works. For a schema update, use the separate [migration procedure](#databa
 ### Database migration procedure
 
 
-1. Install SQL Server and verify connection with the migration account. Set `database.createIfMissing: true` only for intentional creation of a new database; it defaults to false. The local example opts in.
+1. Install SQL Server and verify connection with the migration account. The supplied installation values set `database.createIfMissing: true` for a new database. For an existing database, set it to `false` before a migration.
 2. Back up the database and prove the restore procedure. Stop/quiesce application writers as required.
-3. Choose the image tag/application version and review the schema change. The local profile's reduced
-   partition counts are intended only for a new disposable database, not for changing existing partition layouts.
+3. Choose the image tag/application version and review the schema change. The installation values' reduced
+   partition counts are intended for a new small installation. Preserve and review an existing partition layout;
+   do not apply reduced counts to an existing database without a migration plan.
 4. Execute one migration at a time. Choose a new `runId` only for an intentional execution.
 
 ```bash
+# Manual installation:
+DB_UPDATE_VALUES='helm/values/db-update.yaml'
+# After a Bash installation, use this instead:
+# DB_UPDATE_VALUES='.local/installer/values/db-update.yaml'
+
 helm upgrade --install db-update helm/charts/db-update --kube-context "$KUBE_CONTEXT" \
-  --namespace mef-dev -f helm/values/db-update.yaml \
+  --namespace mef-dev -f "$DB_UPDATE_VALUES" \
   --wait --wait-for-jobs --timeout 35m
 kubectl --context "$KUBE_CONTEXT" --namespace mef-dev get jobs -l app.kubernetes.io/name=db-update
 ```
@@ -1001,8 +1329,14 @@ Frontend URLs and login-provider settings are in `apps.yaml`, under
 
 #### API
 
+Configure Microsoft sign-in using [step 2](#microsoft-entra-id).
+
 Set `AuthOptions.Issuer`, `Audience`, `Domain`, token lifetimes and authentication options
 under `config.appsettings`. Replace example domains with your own domains.
+Current MEF session tokens omit `iss` and `aud`, so the values use `ValidateIssuer: false`
+and `ValidateAudience: false`. Keep `ValidateIssuerSigningKey: true`, the expiry check
+and the image's matching signing keys. Revisit the two
+claim checks when upgrading to an API image that emits those claims.
 Configure EntityGenerator, Opendatabot and provider endpoints only when those services
 are available. OAuth providers also need their public client ID, redirect URI and
 Secret-bound credentials. Database connections come from `api-secrets`.
@@ -1039,8 +1373,8 @@ if the cluster does not support the corresponding environment variable names.
 
 #### Logging
 
-API defaults keep console logging with `config.disabledLogSinks: [1, 2, 3, 4]`.
-Servicehost defaults disable sinks 0 and 3. Remove indexes to enable required sinks;
+The supplied API configuration keeps console logging with `config.disabledLogSinks: [1, 2, 3, 4]`.
+The supplied Servicehost configuration disables sinks 0 and 3. Remove indexes to enable required sinks;
 configure their endpoints, credentials, permissions and retention first.
 
 Disabled sinks are removed from the rendered list. Environment variable indexes must
@@ -1057,7 +1391,7 @@ Add only the bindings for integrations you activate:
 
 | Environment key under `env` | Secret | Key |
 |---|---|---|
-| `AuthOptions__EntraId__ClientSecret` | `api-integrations` | `entraClientSecret` |
+| `AuthOptions__EntraId__ClientSecret` (already bound) | `api-secrets` | `entraClientSecret` |
 | `AuthOptions__Google__ClientSecret` | `api-integrations` | `googleClientSecret` |
 | `AuthOptions__IdGovUa__ClientSecret` | `api-integrations` | `idGovUaClientSecret` |
 | `AuthOptions__IdGovUa__PKeyPassword` | `api-integrations` | `idGovUaPKeyPassword` |
@@ -1080,8 +1414,13 @@ Add only the bindings for integrations you activate:
 These whole-file modes bypass the disabled-task/log-sink lists: the supplied file must
 itself disable unwanted integrations. Keep credentials out of ConfigMaps and public values.
 
-For signing keys, mount the relevant Secret keys as `/app/public_key.xml` and
-`/app/private_key.xml`. Encrypted API settings use `/app/appsettings.json.aes`.
+The API image supplies `/app/appsettings.json.aes` together with its matching keys.
+The supplied values preserve that encrypted configuration/key pair and mount the
+installation settings at `/app/appsettings.json`. Environment bindings provide credentials.
+Do not replace only `/app/public_key.xml` or `/app/private_key.xml`: custom key pairs
+require a matching encrypted configuration supplied by the image publisher.
+For a coordinated custom set, mount its files from a Secret as read-only files at
+`/app/public_key.xml`, `/app/private_key.xml` and `/app/appsettings.json.aes`.
 Kerberos configuration uses `/etc/krb5.conf` and `env.KRB5_CONFIG: /etc/krb5.conf`.
 Add Secret volumes and read-only subPath mounts in the component's `volumes` and
 `volumeMounts` lists. Create the Secrets before upgrading the release.
@@ -1099,9 +1438,13 @@ environment variable does not convert existing databases or columns.
 <a id="configuration"></a>
 ### Values reference
 
-The seven long-running component charts are independent and accept complete `values.yaml` defaults. Only modern Kubernetes APIs
-are emitted. The eighth chart, `db-update`, has a separate opt-in Job contract described in
-[database update](#database-update). Unknown top-level keys fail schema validation to expose mistakes in legacy values.
+The seven long-running component charts, the `storage` chart and the `db-update`
+Job chart are independent. Each chart's `values.yaml` is an empty mapping with a
+link and command pointing to the complete configuration in `helm/values/<component>.yaml`.
+Helm does not follow that link automatically: always pass the complete file with `-f`.
+Without it, schema validation rejects the missing required settings before installation.
+Only modern Kubernetes APIs are emitted. See [database update](#database-update)
+for the migration contract. Unknown top-level keys also fail schema validation.
 
 <details>
 <summary>Expand the complete values reference</summary>
@@ -1267,6 +1610,10 @@ Use your explicit kubeconfig/context and application namespace on each command.
 | Gateway rejects route | `Accepted`, `ResolvedRefs`, parent name/namespace/sectionName, allowedRoutes and feature support |
 | HTTPS fails | Certificate SAN, Secret namespace/type, HTTPS listener and client trust |
 | Browser login fails while curl works | CORS preflight, allowed origin, credentials and cookie domain/SameSite/Secure |
+| Microsoft button is missing | `AuthOptions.EntraIdAuth: true` in API and matching Client ID/authority in Apps |
+| Microsoft callback fails | Web redirect URI on the public API, identical tenant/client IDs, client secret Value and expiry |
+| Login succeeds then API returns HTTP 455 | Preserve the supplied MEF token validation settings and matching signing key pair |
+| API exits with a cryptographic padding error | Preserve the image's matching encrypted configuration/key pair; do not replace individual key files |
 | External config updated but app unchanged | Restart Pods using external ConfigMap/Secret file subPath or env values |
 
 Collect scoped events, Pod status and application errors. Redact passwords, connection strings, bearer

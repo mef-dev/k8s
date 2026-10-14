@@ -56,18 +56,38 @@ config:
   existingConfigMap: ''
   existingSecret: ''
   data:
-    config.json: "{\n  \"apiUrl\": \"https://api.example.com\",\n  \"apiUrl2\": \"\
-      \",\n  \"EntraIdAuthClientId\": \"\",\n  \"LinkedInClientId\": \"\",\n  \"EntraIdAuthUrl\"\
-      : \"https://login.microsoftonline.com/common\",\n  \"contactPhone\": \"\"\n}"
-    nginx.conf: "events {}\nhttp {\n  include /etc/nginx/mime.types;\n  server {\n\
-      \    listen 80;\n    server_name _;\n    root /usr/share/nginx/html;\n    index\
-      \ index.html;\n    add_header X-Content-Type-Options nosniff always;\n    add_header\
-      \ Referrer-Policy strict-origin-when-cross-origin always;\n    add_header X-Frame-Options\
-      \ SAMEORIGIN always;\n    location / { try_files $uri $uri/ /index.html; }\n\
-      \    location = /config/config.json {\n      add_header Cache-Control \"no-store\"\
-      \ always;\n      try_files $uri =404;\n    }\n    location = /index.html {\n\
-      \      add_header Cache-Control \"no-cache\" always;\n      try_files $uri =404;\n\
-      \    }\n  }\n}\n"
+    config.json: |
+      {
+        "apiUrl": "https://api.example.com",
+        "apiUrl2": "",
+        "EntraIdAuthClientId": "REPLACE_ENTRA_CLIENT_ID",
+        "LinkedInClientId": "",
+        "EntraIdAuthUrl": "https://login.microsoftonline.com/REPLACE_ENTRA_TENANT_ID",
+        "contactPhone": ""
+      }
+    nginx.conf: |
+      events {}
+      http {
+        include /etc/nginx/mime.types;
+        server {
+          listen 80;
+          server_name _;
+          root /usr/share/nginx/html;
+          index index.html;
+          add_header X-Content-Type-Options nosniff always;
+          add_header Referrer-Policy strict-origin-when-cross-origin always;
+          add_header X-Frame-Options SAMEORIGIN always;
+          location / { try_files $uri $uri/ /index.html; }
+          location = /config/config.json {
+            add_header Cache-Control "no-store" always;
+            try_files $uri =404;
+          }
+          location = /index.html {
+            add_header Cache-Control "no-cache" always;
+            try_files $uri =404;
+          }
+        }
+      }
   mounts:
   - key: config.json
     mountPath: /usr/share/nginx/html/config/config.json

@@ -2,16 +2,17 @@
 set -euo pipefail
 umask 077
 : "${MSSQL_HOST:?}" "${MSSQL_DB:?}" "${MSSQL_USER:?}" "${MSSQL_PASSWORD:?}" "${APP_VERSION:?}" "${UCP_BOOTSTRAP_USER:?}" "${UCP_BOOTSTRAP_PASSWORD:?}"
+: "${FG10D_Num:?}" "${FG10_Num:?}" "${FG10D14_Num:?}" "${FG10D14S_Num:?}"
 [[ "$MSSQL_DB" =~ ^[A-Za-z_][A-Za-z0-9_]{0,49}$ ]] || { echo "Invalid SQL database identifier"; exit 2; }
 [[ "$APP_VERSION" =~ ^[A-Za-z0-9._-]{1,20}$ ]] || { echo "Invalid application version"; exit 2; }
-[[ "$FG10D_Num" =~ ^[0-9]+$ && "$FG10_Num" =~ ^[0-9]+$ && "$FG10D14_Num" =~ ^[0-9]+$ ]] || exit 2
+[[ "$FG10D_Num" =~ ^[0-9]+$ && "$FG10_Num" =~ ^[0-9]+$ && "$FG10D14_Num" =~ ^[0-9]+$ && "$FG10D14S_Num" =~ ^[0-9]+$ ]] || exit 2
 sqlcmd=/opt/mssql-tools/bin/sqlcmd
 [[ -x "$sqlcmd" ]] || sqlcmd=/opt/mssql-tools18/bin/sqlcmd
 export SQLCMDPASSWORD="$MSSQL_PASSWORD"
 cert_args=()
 [[ "$TRUST_SERVER_CERTIFICATE" != true ]] || cert_args=(-C)
 ready=false
-for attempt in {1..60}; do
+for _attempt in {1..60}; do
   if "$sqlcmd" -S "$MSSQL_HOST" -U "$MSSQL_USER" "${cert_args[@]}" -b -l 5 -Q 'SELECT 1' >/dev/null 2>&1; then ready=true; break; fi
   sleep 5
 done
@@ -76,7 +77,8 @@ if [[ "$CREATE_DATABASE_IF_MISSING" == true ]]; then
 fi
 step pre-deployment "$sqlcmd" -S "$MSSQL_HOST" -U "$MSSQL_USER" "${cert_args[@]}" -b -d master \
   -i Script.PreDeployment.sql -v DatabaseName="$MSSQL_DB" DefaultFilePrefix="$MSSQL_DB" \
-  Pt1_Dim1Num_Cust="$FG10D_Num" Pt2_Dim1Num_Cust="$FG10_Num" Pt3_Dim1Num_Cust="$FG10D14_Num"
+  Pt1_Dim1Num_Cust="$FG10D_Num" Pt2_Dim1Num_Cust="$FG10_Num" Pt3_Dim1Num_Cust="$FG10D14_Num" \
+  Pt4_Dim1Num_Cust="$FG10D14S_Num"
 step schema-publish /opt/sqlpackage/sqlpackage /a:Publish /pr:"$tmp/publish.xml" /sf:/tmp/db/db.dacpac \
   /p:BlockOnPossibleDataLoss=True /p:DropObjectsNotInSource=False \
   /p:DropIndexesNotInSource=False /p:DropConstraintsNotInSource=False

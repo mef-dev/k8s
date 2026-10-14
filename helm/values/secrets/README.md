@@ -11,3 +11,10 @@ Set the cluster and namespace using [installation](../../../README.md#1-prepare-
 Secrets are plain YAML without SOPS. Templates omit namespace; `--namespace mef-dev` selects it.
 Keep database passwords consistent with the application connection strings and do not
 commit filled Secrets. Changing a Secret alone does not rotate database credentials.
+
+`api-secrets/entraClientSecret` is required for the primary Microsoft sign-in; fill
+it with the client secret Value from your own App Registration. See
+[Microsoft Entra ID](../../../README.md#microsoft-entra-id).
+
+The API image's encrypted configuration/key pair is preserved. No separate signing-key
+Secret is required by the supplied values.

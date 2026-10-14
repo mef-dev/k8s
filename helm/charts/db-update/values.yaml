@@ -1,37 +1,6 @@
-image:
-  repository: digitalbss/db-update
-  tag: latest
-  pullPolicy: Always
-imagePullSecrets: []
-migration:
-  enabled: false
-  runId: ''
-  activeDeadlineSeconds: 1800
-  ttlSecondsAfterFinished: 86400
-database:
-  host: mssql
-  name: UCP
-  user: sa
-  existingSecret: mssql-auth
-  passwordKey: password
-  trustServerCertificate: true
-  createIfMissing: false
-applicationVersion: 2.2.6.21
-filegroups:
-  partition10: 0
-  partition10d14: 0
-  partition10d: 0
-resources:
-  requests:
-    cpu: 200m
-    memory: 256Mi
-  limits:
-    cpu: 2000m
-    memory: 1Gi
-nodeSelector:
-  kubernetes.io/os: linux
-tolerations: []
-bootstrapUser:
-  name: UCP_user
-  existingSecret: db-update-bootstrap
-  passwordKey: password
+# Configuration is maintained in one file: ../../values/db-update.yaml
+# https://github.com/mef-dev/k8s/blob/dev/helm/values/db-update.yaml
+# This chart has no built-in configuration. Pass the complete file explicitly.
+# Run from the repository root:
+# helm upgrade --install db-update helm/charts/db-update --namespace mef-dev -f helm/values/db-update.yaml
+{}

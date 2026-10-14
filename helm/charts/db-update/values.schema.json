@@ -108,7 +108,32 @@
       "pattern": "^[A-Za-z0-9._-]+$"
     },
     "filegroups": {
-      "type": "object"
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "partition10",
+        "partition10d14",
+        "partition10d",
+        "partition10d14s"
+      ],
+      "properties": {
+        "partition10": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "partition10d14": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "partition10d": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "partition10d14s": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
     },
     "resources": {
       "type": "object"

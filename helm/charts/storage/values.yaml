@@ -1,23 +1,6 @@
-# Select a StorageClass that supports ReadWriteMany before installation.
-claims:
-  front:
-    create: true
-    storageClass: ''
-    accessModes:
-    - ReadWriteMany
-    size: 10Gi
-    retain: true
-  back:
-    create: true
-    storageClass: ''
-    accessModes:
-    - ReadWriteMany
-    size: 10Gi
-    retain: true
-  api-config:
-    create: true
-    storageClass: ''
-    accessModes:
-    - ReadWriteMany
-    size: 1Gi
-    retain: true
+# Configuration is maintained in one file: ../../values/storage.yaml
+# https://github.com/mef-dev/k8s/blob/dev/helm/values/storage.yaml
+# This chart has no built-in configuration. Pass the complete file explicitly.
+# Run from the repository root:
+# helm upgrade --install storage helm/charts/storage --namespace mef-dev -f helm/values/storage.yaml
+{}

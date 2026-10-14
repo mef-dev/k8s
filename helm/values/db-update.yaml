@@ -18,9 +18,11 @@ database:
   createIfMissing: true
 applicationVersion: 2.2.6.21
 filegroups:
+  # First-dimension counts; 0 selects the image default. Preserve existing layouts.
   partition10: 1
   partition10d14: 1
   partition10d: 1
+  partition10d14s: 1
 resources:
   requests:
     cpu: 200m

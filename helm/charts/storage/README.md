@@ -12,3 +12,10 @@ on Helm uninstall by default. Database PVCs belong to their respective database 
 For an existing claim managed outside this release, set its `create: false`; its name
 must still be `front`, `back` or `api-config` as referenced by the application values.
 See [installation and mount mapping](../../../README.md#storage-and-databases).
+
+For an explicitly single-node installation, `ReadWriteOnce` is supported when every
+consumer is pinned to the same node. The Bash installer requires `MEF_NODE_NAME`
+for this mode. Multi-node shared storage should use `ReadWriteMany`.
+
+The chart's `values.yaml` is only a pointer. Always pass the complete configuration
+with `-f helm/values/storage.yaml`; chart-only installation is rejected by schema validation.

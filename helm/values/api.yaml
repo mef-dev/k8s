@@ -42,6 +42,13 @@ env:
       secretKeyRef:
         name: api-secrets
         key: pgvector
+  # Required Microsoft sign-in credential; fill the separate Secret before installation.
+  AuthOptions__EntraId__ClientSecret:
+    valueFrom:
+      secretKeyRef:
+        name: api-secrets
+        key: entraClientSecret
+        optional: false
 envFrom: []
 command: []
 args: []
@@ -168,8 +175,9 @@ config:
       MultiTenantAudiences:
       - https://apps.example.com
       Domain: example.com
-      ValidateIssuer: true
-      ValidateAudience: true
+      # MEF access tokens currently omit iss/aud; signature validation stays enabled.
+      ValidateIssuer: false
+      ValidateAudience: false
       ValidateIssuerSigningKey: true
       RefreshTokenRestrictByIp: true
       Lifetime: 10
@@ -187,12 +195,11 @@ config:
         RequireUppercase: true
         RequireNonAlphanumeric: true
         RequiredLength: 12
-      User:
-        AllowedUserNameCharacters: null
+      User: {}
+      EntraIdAuthUrl: https://login.microsoftonline.com/REPLACE_ENTRA_TENANT_ID
       EntraId:
-        ClientId: ''
+        ClientId: REPLACE_ENTRA_CLIENT_ID
         ClientSecret: ''
-        EntraIdAuthUrl: https://login.microsoftonline.com/common
       Network: Internet
       AuthenticationTypes:
       - CloudAP
@@ -201,7 +208,7 @@ config:
       - Kerberos
       GoogleAuth: false
       LinkedinAuth: false
-      EntraIdAuth: false
+      EntraIdAuth: true
       IdGovUa:
         ClientSecret: ''
         PKeyPassword: ''

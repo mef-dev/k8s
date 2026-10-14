@@ -67,6 +67,8 @@ spec:
               value: {{ .Values.filegroups.partition10 | quote }}
             - name: FG10D14_Num
               value: {{ .Values.filegroups.partition10d14 | quote }}
+            - name: FG10D14S_Num
+              value: {{ .Values.filegroups.partition10d14s | quote }}
             - name: TRUST_SERVER_CERTIFICATE
               value: {{ .Values.database.trustServerCertificate | quote }}
           resources:
