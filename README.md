@@ -94,7 +94,7 @@ k8s/
 | Registry access | Docker Hub access from cluster nodes; the registry used by your selected controller |
 | Persistent storage | An RWX-capable StorageClass for shared application files; database StorageClasses or existing PVCs |
 | Public access | Your application domains, DNS records and a TLS certificate covering those domains |
-| Load balancing | A LoadBalancer implementation, or the documented ClusterIP / port-forward option |
+| Load balancing | A LoadBalancer implementation for the selected controller |
 | Microsoft sign-in | Your Entra tenant, permission to register an application, and its client secret |
 | Application setup | Database schema/data, the API image's matching encrypted configuration/key pair, and initial user accounts |
 
@@ -770,9 +770,9 @@ load-balancer address has not been assigned; do not use it as a working endpoint
 
 The controller creates the non-default IngressClass `mef-ingress-nginx` and a
 LoadBalancer Service. Your cluster must provide a load-balancer implementation.
-For ClusterIP access, append the profile's `controller-local.yaml` and use the
-[local access example](#local-access-without-a-loadbalancer). If using an existing controller instead, set the application
-profile's `ingress.className` to its actual IngressClass.
+For direct HTTPS diagnostics, use the [port-forward procedure](#check-https-routing-through-the-controller).
+If using an existing controller instead, set the application profile's
+`ingress.className` to its actual IngressClass.
 
 #### Create TLS credentials
 
@@ -883,9 +883,8 @@ kubectl --context "$KUBE_CONTEXT" apply --server-side \
 
 The following commands use `KUBECONFIG` and `KUBE_CONTEXT` from [step 1](#1-prepare-the-repository-and-namespace).
 Application and controller releases use namespace `mef-dev`.
-Controller examples use LoadBalancer for a normal installation. On k3s without a suitable external
-load balancer, use the additional `controller-local.yaml` profile or the documented ClusterIP proxy.
-ClusterIP access uses port-forward without reserving the host's ports 80/443.
+Controller examples use LoadBalancer for public access. Configure the cluster load
+balancer before publishing the application DNS records.
 
 #### NGINX Gateway Fabric
 
@@ -893,7 +892,6 @@ ClusterIP access uses port-forward without reserving the host's ports 80/443.
 helm upgrade --install mef-ngf oci://ghcr.io/nginx/charts/nginx-gateway-fabric \
   --version 2.6.7 --kube-context "$KUBE_CONTEXT" --namespace mef-dev --create-namespace \
   -f helm/values/ingress/gateway/nginx-gateway-fabric/controller-values.yaml
-# For a laptop append: -f helm/values/ingress/gateway/nginx-gateway-fabric/controller-local.yaml
 ```
 
 The chart installs NGF-specific CRDs. The common Gateway API CRDs are a separate prerequisite.
@@ -916,18 +914,6 @@ helm upgrade --install mef-eg .local/vendor/gateway-helm --skip-crds --set crds.
 kubectl --context "$KUBE_CONTEXT" apply -f helm/values/ingress/gateway/envoy-gateway/gatewayclass.yaml
 ```
 
-For a ClusterIP data-plane Service, apply `proxy-local.yaml` in the application namespace and add to
-your copy of `gateway.yaml`:
-
-```yaml
-spec:
-  infrastructure:
-    parametersRef:
-      group: gateway.envoyproxy.io
-      kind: EnvoyProxy
-      name: mef-local
-```
-
 The Envoy control-plane Service type is distinct from the generated Envoy data-plane Service.
 [Upstream installation](https://gateway.envoyproxy.io/docs/tasks/quickstart/).
 
@@ -939,7 +925,6 @@ helm repo update traefik
 helm upgrade --install mef-traefik traefik/traefik --version 41.7.1 \
   --kube-context "$KUBE_CONTEXT" --namespace mef-dev --create-namespace \
   -f helm/values/ingress/gateway/traefik/controller-values.yaml
-# For a laptop append: -f helm/values/ingress/gateway/traefik/controller-local.yaml
 ```
 
 If the Traefik CRDs are already managed by your distribution, inspect compatibility and use `--skip-crds`
@@ -1051,11 +1036,10 @@ and HTTPS access returns the expected application response.
 | API liveness works but login fails | API/frontend URLs, authentication settings and database/account data |
 
 
-### Local access without a LoadBalancer
+### Check HTTPS routing through the controller
 
-For the community ingress-nginx controller, append
-`-f helm/values/ingress/classic/ingress-nginx/controller-local.yaml`
-to its Helm installation command. In one terminal, forward its HTTPS port:
+To inspect HTTPS routing independently of public DNS and load-balancer connectivity,
+forward the community ingress-nginx controller's HTTPS port in one terminal:
 
 ```bash
 kubectl --context "$KUBE_CONTEXT" --namespace mef-dev port-forward \

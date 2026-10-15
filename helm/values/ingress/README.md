@@ -16,7 +16,7 @@ Select one variant for each application. Merge `api.yaml`, `apps.yaml`,
 values file. Gateway and Ingress modes are mutually exclusive.
 
 `controller-values.yaml` is for installing the controller with Helm, not for an
-application chart. `controller-local.yaml` contains optional laptop settings.
+application chart.
 Files with top-level `apiVersion` and `kind` are Kubernetes manifests (Gateway,
 GatewayClass, redirect routes, controller policies or Middleware); apply only the
 selected manifests after installing the required controller/CRDs and TLS Secret.

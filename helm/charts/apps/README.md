@@ -11,7 +11,7 @@ Default container: `digitalbss/apps`; Service port `80`.
 Use the complete configuration in [apps.yaml](../../values/apps.yaml), enforced by [values.schema.json](values.schema.json)
 and described in the [shared values contract](../../../README.md#configuration).
 
-Application credentials must exist as Kubernetes Secrets. No private environment values are included.
+Application credentials must exist as Kubernetes Secrets.
 See [migration](../../../README.md#upgrade-and-migration) for the 2.0 values contract.
 
 The supplied values reference shared PVCs from the `storage` release. Install that

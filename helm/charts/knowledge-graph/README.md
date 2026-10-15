@@ -11,7 +11,7 @@ Default container: `digitalbss/knowledge-graph`; Service port `80`.
 Use the complete configuration in [knowledge-graph.yaml](../../values/knowledge-graph.yaml), enforced by [values.schema.json](values.schema.json)
 and described in the [shared values contract](../../../README.md#configuration).
 
-Application credentials must exist as Kubernetes Secrets. No private environment values are included.
+Application credentials must exist as Kubernetes Secrets.
 See [migration](../../../README.md#upgrade-and-migration) for the 2.0 values contract.
 
 The supplied values mount the shared `back` PVC at `/usr/share/nginx/html/packages`.
