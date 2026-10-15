@@ -1283,13 +1283,12 @@ values update, not a promise of an in-place upgrade from every historical reposi
 
 | Previous input | New input |
 |---|---|
-| `api` public chart / `ucpapi` private chart | Public chart and release name `api` |
 | Layered values | One complete file per component in `helm/values/` |
 | `httpPort` | `containerPort` |
 | `ingress.enabled` | `networking.mode: ingress` with explicit class/hosts |
 | nginx-only annotations/snippets | Standard route filters or controller-specific policy; inspect semantic differences |
 | `persistence.accessMode` | `persistence.accessModes` list |
-| Private `appsConfig`, `ucpapiConfig`, `appsettings` wrappers | Explicit `config.data` files or an existing Secret/ConfigMap |
+| Legacy configuration wrappers | Explicit `config.data` files or an existing Secret/ConfigMap |
 | Generated plaintext credential values | Pre-created Secrets referenced from `env`, `envFrom` or mounted files |
 | `{{ .Values.env.APP_VERSION }}` | Explicit `image.tag` |
 | hostPath and fixed node names | StorageClass/existing PVC and optional administrator scheduling constraints |
@@ -1601,7 +1600,7 @@ Use your explicit kubeconfig/context and application namespace on each command.
 |---|---|
 | `ImagePullBackOff` | Repository/tag, Docker Hub limits, node egress and any pull Secret |
 | API cannot write `/storage/ProdK8S` | Mounted PVC, CSI fsGroup support, actual image UID and filesystem permissions |
-| Frontend nginx cannot resolve `ucpapi` | Use the chart's mounted nginx.conf; public Service is `api` |
+| Frontend nginx cannot resolve the API Service | Use the chart's mounted nginx.conf; the Service name is `api` |
 | `ConfigService::ConfigSection is null` | Task-host `Tasks` object and required `HttpClients` configuration |
 | API Ready but SQL errors | Actual database/schema and credentials; a successful probe does not verify business operations |
 | PVC Pending | StorageClass, access mode, capacity and WaitForFirstConsumer scheduling |
