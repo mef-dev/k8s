@@ -1518,7 +1518,7 @@ be provisioned with equivalent access. This matters with NFS root squash and CSI
 that do not manage filesystem ownership. Shared volumes must support `ReadWriteMany`
 when consumers run on different nodes; a node-local disk does not provide that capability.
 
-`pgvector/pgvector:pg16` is used to preserve the PostgreSQL major version of the source configuration.
+`digitalbss/pgvector:latest` contains PostgreSQL 16 with the pgvector extension.
 Do not point a different PostgreSQL major version at an old data directory.
 The chart bootstraps `CREATE EXTENSION IF NOT EXISTS vector` only for a new database directory.
 
@@ -1565,11 +1565,12 @@ backups independently and check your PV reclaim policy.
 | mssql | `digitalbss/mssql:latest` |
 | db-update | `digitalbss/db-update:latest` |
 | plantuml | `plantuml/plantuml-server:latest` |
-| pgvector | `pgvector/pgvector:pg16` |
+| pgvector | `digitalbss/pgvector:latest` |
 
-Images use tags with `image.pullPolicy: Always`. The pgvector repository does not
-publish a `latest` tag; `pg16` selects PostgreSQL 16. Do not change the PostgreSQL
-major version on an existing data directory without a database migration.
+Images use tags with `image.pullPolicy: Always`. The supplied pgvector image uses
+PostgreSQL 16; the `pg16` tag is also available in `digitalbss/pgvector` when an explicit
+major-version tag is needed. Do not change the PostgreSQL major version on an existing
+data directory without a database migration.
 `applicationVersion` in db-update is the schema/application version passed to the
 migration, independent of the image tag. Set it for the database release you intend to apply.
 

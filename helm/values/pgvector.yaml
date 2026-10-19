@@ -3,8 +3,8 @@ fullnameOverride: ''
 replicaCount: 1
 revisionHistoryLimit: 3
 image:
-  repository: pgvector/pgvector
-  tag: pg16
+  repository: digitalbss/pgvector
+  tag: latest
   pullPolicy: Always
 imagePullSecrets: []
 containerPort: 5432
