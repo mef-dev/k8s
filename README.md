@@ -6,33 +6,32 @@
   <img alt="Namespace mef-dev" src="https://img.shields.io/badge/namespace-mef--dev-0F766E?style=flat-square">
 </p>
 
-**Deploy and operate MEF.DEV with Helm.**
+**Install MEF.DEV on Kubernetes — automatically or step by step with Helm.**
 
-A complete installation guide for the web frontend, API, background services,
-document service, SQL Server and PostgreSQL with pgvector. Choose your Ingress or
-Gateway controller and configure each component through a single values file.
-Microsoft Entra ID is the primary sign-in method; each installation uses its own App Registration.
+Deploy the web frontend, API, Servicehost, Knowledge Graph, SQL Server and PostgreSQL
+with pgvector. Microsoft Entra ID is the primary sign-in method. The supplied bundle
+adds BPMN Designer and the ProductCatalogAI backend.
 
-**[Install with Bash](#install-with-bash)** ·
-**[Manual installation](#1-prepare-the-repository-and-namespace)** ·
-**[Connect ingress](#networking)** ·
-**[Configure applications](#application-configuration)** ·
-**[Microsoft sign-in](#microsoft-entra-id)** ·
-**[Troubleshoot](#troubleshooting)**
+## Choose your installation path
 
----
-
-## Guide map
-
-| Install | Operate | Configure |
+| | [A · Script installation](#install-with-bash) | [B · Manual Helm installation](#manual-installation) |
 | :--- | :--- | :--- |
-| [Requirements](#prerequisites) | [Update an application](#update-an-application) | [Application settings](#application-configuration) |
-| [1. Repository & namespace](#1-prepare-the-repository-and-namespace) | [Run a database migration](#database-update) | [Values reference](#configuration) |
-| [2. Entra ID, values & Secrets](#2-configure-values-and-secrets) | [Back up & restore](#backup-and-restore) | [Storage & shared files](#storage-and-databases) |
-| [3. Databases](#3-install-databases) | [Upgrade older charts](#upgrade-and-migration) | [Container images](#images) |
-| [4. Initial migration](#4-run-the-database-migration) | [Uninstall applications](#uninstall-applications) | [Ingress & Gateway profiles](#networking) |
-| [5. Applications](#5-install-applications) | [Troubleshooting](#troubleshooting) | [Optional Secret bindings](#optional-secret-bindings) |
-| [6. Ingress, DNS & TLS](#networking) | | |
+| Best suited for | A new installation with one configuration file | Administrators who want to configure and apply every step |
+| What you edit | `.local/install.env` | `helm/values/<component>.yaml` and local Secret files |
+| How you deploy | One `./install.sh` run | Explicit `helm upgrade --install` commands |
+| Entra registration | Created by the script, or an existing prepared registration | Prepared by the administrator |
+| Initial MEF account, setup and plugins | Configured by the script for `MEF_SETUP_EMAIL` | Completed in Apps after staging the plugin bundle |
+| Access assignment | Script grants the configured Microsoft user access | Administrator enables namespaces and assigns users |
+| Azure CLI | Required for the default script path | Not required for the manual browser/Helm path |
+
+Choose **one** path for the initial installation. Both deploy the same Helm charts,
+shared storage and applications in `mef-dev`. The script is intended for installations
+it owns; it does not take over an independently installed namespace.
+
+**[Requirements](#prerequisites)** · **[Script](#install-with-bash)** ·
+**[Manual Helm](#manual-installation)** · **[Ingress / Gateway](#networking)** ·
+**[Plugins](#plugin-packages-and-repeat-runs)** · **[Operations](#operations)** ·
+**[Troubleshooting](#troubleshooting)**
 
 ## Deployment model
 
@@ -57,7 +56,11 @@ flowchart LR
 ```text
 k8s/
 ├── README.md
-├── install.sh          # Guided initial installation
+├── install.sh          # Platform, plugin installation and initial access
+├── deployment-packages/ # Plugin manifest and ZIP packages
+│   ├── manifest.json
+│   ├── BPMN.zip
+│   └── ProductCatalogAI.zip
 └── helm/
     ├── charts/          # Component Helm charts
     └── values/          # One complete YAML file per component
@@ -76,7 +79,21 @@ k8s/
 | Selectable routing | Profiles in `helm/values/ingress/` |
 | Optional diagrams | Install `plantuml` when diagram rendering is needed |
 
-**Installation order:** namespace → Entra ID registration → values & Secrets → shared PVCs → databases → migration → applications → routing → Microsoft sign-in.
+| Configuration ownership | Script path | Manual path |
+| :--- | :--- | :--- |
+| Installation input | `.local/install.env` | `helm/values/<component>.yaml` |
+| Complete values passed to Helm | `.local/installer/values/<component>.yaml` | `helm/values/<component>.yaml` |
+| Credentials applied to Kubernetes | `.local/installer/secrets/` | `.local/secrets/` |
+
+The script regenerates its output files. Change its supported options in
+`install.env`; after switching to manual operation, retain your complete customized
+values and use them consistently. Neither path installs directly from the chart's
+stub `values.yaml`.
+
+**Deployment order:** configuration → storage → databases → migration → applications →
+routing → platform setup and plugin import → user access.
+For the manual path, Microsoft sign-in creates the first account before platform setup;
+the script performs initial account/setup operations during its own run.
 
 > [!NOTE]
 > Output blocks illustrate the expected result; they are not execution logs.
@@ -90,13 +107,13 @@ k8s/
 | Requirement | Prepare |
 | :--- | :--- |
 | Cluster | Linux Kubernetes **1.28+** for the application charts; check the chosen controller's requirements separately |
-| Tools | Helm 3, kubectl and a kubeconfig for the intended cluster |
+| Tools | Bash terminal, Helm 3, kubectl, curl, sha256sum and a kubeconfig for the intended cluster; the script adds the tools listed in path A |
 | Registry access | Docker Hub access from cluster nodes; the registry used by your selected controller |
 | Persistent storage | An RWX-capable StorageClass for shared application files; database StorageClasses or existing PVCs |
 | Public access | Your application domains, DNS records and a TLS certificate covering those domains |
 | Load balancing | A LoadBalancer implementation for the selected controller |
 | Microsoft sign-in | Your Entra tenant, permission to register an application, and its client secret |
-| Application setup | Database schema/data, the API image's matching encrypted configuration/key pair, and initial user accounts |
+| Initial setup | Company name, intended Microsoft user and the supplied plugin bundle; the installer/wizard creates the initial MEF accounts |
 
 Start with one replica per component. SQL Server needs at least **2 GiB** for its
 process; allow additional capacity for the operating system, applications and routing
@@ -115,35 +132,43 @@ accessible to all participating Pods. See [storage and databases](#storage-and-d
 
 
 <a id="install-with-bash"></a>
-## Install with Bash
+## A · Install with the script
 
 For a new installation, use [install.sh](install.sh). Fill one local configuration
 file; the installer prepares complete Helm values, separate Secrets and routing,
-then installs the components in the required order. The manual guide below remains
+then installs the components, imports the supplied plugins and grants access to the
+configured Microsoft user. The manual guide below remains
 available for existing deployments and later database migrations.
 
 Prepare a Kubernetes cluster, storage, DNS and a TLS certificate first. The cluster
 must have a LoadBalancer implementation when installing a controller. DNS must point
 `apps`, `api`, `knowledge-graph` and `servicehost` subdomains at your ingress address.
 The supplied certificate must cover those hosts; include `plantuml` if enabling it.
-The installer does not manage external DNS providers or issue certificates.
+The installer does not manage external DNS providers or issue certificates. The API
+hostname must also resolve and be reachable from API Pods: backend plugin loading
+uses the public API address. Configure split DNS when your network requires it.
 
 Required local tools: **Bash 4+, Helm 3, kubectl, Python 3 with PyYAML, OpenSSL,
 curl and flock**. On Debian/Ubuntu, PyYAML is provided by `python3-yaml` and flock
-by `util-linux`. Azure CLI is also required when the installer creates the Entra app.
+by `util-linux`. **Azure CLI is required for the default installation**, including
+existing App Registrations: it verifies the delegated Microsoft identity used to
+create the initial MEF account and receive plugin access. Run the installer as your
+normal user with the intended Azure CLI profile, not with `sudo`.
 The default NGINX Gateway Fabric 2.6.7 controller requires **Kubernetes 1.31+**;
 the application charts require 1.28+. Check the chosen controller's compatibility
 when selecting another profile.
 The pinned Envoy Gateway v1.9.2 installer uses its
 [tested Kubernetes range 1.33–1.36](https://gateway.envoyproxy.io/news/releases/matrix/).
 
-### 1. Create and fill the local configuration
+### A1. Create the local configuration
 
 ```bash
 git clone --branch dev https://github.com/mef-dev/k8s.git
 cd k8s
 ./install.sh --init
 ```
+
+### A2. Fill the installation settings
 
 Edit `.local/install.env` with your text editor. Keep values quoted as in the file.
 This directory is ignored by Git; credentials belong here, not in `install.sh`.
@@ -158,10 +183,43 @@ This directory is ignored by Git; credentials belong here, not in `install.sh`.
 | `MEF_ENTRA_TENANT_ID` | Your Directory (tenant) ID from Microsoft Entra Overview |
 | `MEF_ACCEPT_SQL_EULA` | `Y` after accepting the SQL Server license terms |
 | `MEF_MSSQL_EDITION` | `Developer` for non-production, or the edition/product key licensed for your installation |
+| `MEF_SETUP_EMAIL` | Mail address or UPN of the Microsoft user who will own this installation and receive plugin access |
+| `MEF_ORGANIZATION_NAME` | Display name of the new MEF organization |
+
+<details>
+<summary><strong>Example: configuration for your own cluster</strong></summary>
+
+Replace the sample context, domain, StorageClasses, certificate paths and identity
+values with your own. Keep the other options from the generated file.
+
+```bash
+MEF_KUBE_CONTEXT='company-cluster'
+MEF_NAMESPACE='mef-dev'
+MEF_DOMAIN='platform.company.com'
+MEF_SHARED_STORAGE_CLASS='your-rwx-class'
+MEF_DB_STORAGE_CLASS='your-db-class'
+MEF_TLS_CERT_FILE='.local/tls.crt'
+MEF_TLS_KEY_FILE='.local/tls.key'
+MEF_ENTRA_TENANT_ID='YOUR_DIRECTORY_TENANT_ID'
+MEF_ENTRA_MODE='create'
+MEF_SETUP_EMAIL='administrator@company.com'
+MEF_ORGANIZATION_NAME='Company'
+MEF_ACCEPT_SQL_EULA='Y'
+MEF_MSSQL_EDITION='Developer'
+```
+
+`Developer` is for non-production. Choose the edition licensed for your deployment.
+The default routing profile installs NGINX Gateway Fabric; see
+[routing and storage choices](#routing-and-storage-choices) for another controller
+or single-node storage.
+
+</details>
 
 By default, `MEF_ENTRA_MODE='create'` creates a separate **single-tenant Web App
-Registration** with delegated Graph `User.Read` and the exact API callback. Sign in
-to your tenant before running the installer:
+Registration** with delegated Graph `User.Read` and the exact API callback. The
+installer can open Azure CLI sign-in if no account is cached. To sign in beforehand
+(or when a cached login needs renewed consent), use the same account as
+`MEF_SETUP_EMAIL`:
 
 ```bash
 # Replace the value with your Directory (tenant) ID.
@@ -182,19 +240,33 @@ MEF_ENTRA_CLIENT_SECRET='YOUR_CLIENT_SECRET_VALUE'
 ```
 
 Prepare its Web callback and `User.Read` permission as described in
-[Microsoft Entra ID](#microsoft-entra-id). Existing mode does not require Azure CLI.
+[Microsoft Entra ID](#microsoft-entra-id). Azure CLI is still required for automatic
+initial user registration and plugin access. It is optional only when both
+`MEF_ENTRA_MODE=existing` and `MEF_INSTALL_PLUGINS=false`.
 
-### 2. Check the configuration and install
+### A3. Run the installer
+
+Start the complete installation with one command:
 
 ```bash
-./install.sh --check
 ./install.sh
 ```
 
+For a read-only preflight before the installation, optionally run:
+
+```bash
+./install.sh --check
+```
+
+`--check` is optional: a normal `./install.sh` run performs the same preflight
+before changing remote resources.
+
 If a required field is empty or invalid, the installer stops and lists every field
 that needs attention, with a hint about where to obtain the value. `--check` verifies
-the certificate, target cluster, storage classes and Azure login without changing
-remote resources. It cannot guarantee CSI RWX support or preapprove tenant consent.
+the certificate, target cluster, storage classes, delegated Microsoft identity,
+manifest and ZIP integrity without changing remote resources. Existing registration
+credentials are checked against Entra before deployment; newly created credentials
+are checked immediately after creation. It cannot guarantee CSI RWX support or preapprove tenant consent.
 
 Expected missing-field message:
 
@@ -212,18 +284,39 @@ For a filled configuration, the installation performs:
 4. Create shared PVCs, install databases and complete the initial migration.
 5. Install API, Servicehost, Knowledge Graph and Apps; optionally install PlantUML.
 6. Wait for readiness and routing, then check the external HTTPS endpoints with certificate validation.
+7. Copy the ZIPs to the shared `front` PVC and publish `bundle/manifest.json` after their checksums match.
+8. Verify the configured Microsoft identity, register its MEF account if needed, create the emergency root account and complete platform setup through the MEF API.
+9. Import enabled plugins, assign their namespaces and services to that Microsoft user, and verify BPMN access and the ProductCatalogAI PostgreSQL connection.
 
 Expected final result:
 
 ```text
-==> Installation and HTTPS checks passed.
+==> Plugins installed; PostgreSQL storage and Microsoft user access verified.
 Open https://apps.platform.company.com/login and choose Microsoft.
 ```
 
-**OK:** the script exits successfully, Pods/PVCs are ready and the HTTPS checks pass.
-Complete Microsoft sign-in, initial account registration and platform setup in the
-browser. Authentication, tenant consent and company-specific integrations still need
-their normal administrator/user setup; the script does not submit browser forms.
+### A4. Sign in and confirm access
+
+**OK:** the script exits successfully, Pods/PVCs and HTTPS are ready, the plugin API
+checks pass, and the configured Microsoft user can open BPMN from Applications.
+Sign in to Apps with that Microsoft account. Initial registration and platform setup
+have already been completed; there is no need to repeat the wizard. The normal Apps
+login uses your installation's App Registration. Tenant consent and MFA remain under
+your Microsoft tenant policy; the installer does not bypass them.
+
+The initial identity check uses Azure CLI's delegated Graph session and MEF's external
+sign-in API. It does not use application-only credentials to impersonate a user.
+The installer grants access only to `MEF_SETUP_EMAIL`; additional users need their own
+MEF registration and explicit plugin permissions. It does not make the Microsoft user
+`root`. The emergency password is generated locally in
+`.local/installer/root-credentials.json`; the registration PIN is in
+`.local/installer/registration.json` when a new account is registered. Neither is printed. Store both securely.
+
+SMTP is left disabled. Configure your own sender/provider in Apps when needed;
+automatic installation does not accept terms for a third-party email processor.
+
+Continue with [the final application checks](#8-verify-the-complete-installation).
+Steps 1–7 of the manual path have already been performed by the script.
 
 ### Routing and storage choices
 
@@ -234,6 +327,7 @@ their normal administrator/user setup; the script does not submit browser forms.
 | `MEF_ROUTING_CLASS` | Existing GatewayClass/IngressClass name; leave empty for the profile default |
 | `MEF_INSTALL_PLANTUML` | `true` adds the diagram renderer and its route |
 | `MEF_NAMESPACE` | Defaults to `mef-dev`; use one separate checkout/state directory per installation |
+| `MEF_INSTALL_PLUGINS` | `true` imports enabled packages and completes initial setup; `false` installs the platform for manual browser setup |
 | `MEF_HTTPS_CA_FILE` | Optional private CA bundle for final HTTPS checks |
 
 Classic Traefik and HAProxy profiles use existing controllers and require
@@ -269,28 +363,54 @@ until a normal deployment creates the registration. Generated complete values ar
 `install.env`, or switch to the manual workflow for advanced application customizations.
 
 Back up `.local/install.env` and `.local/installer/` securely. They contain database
-passwords, the Entra credential and installation identity. Losing those files does
+passwords, the Entra credential, emergency root credentials, registration PIN and installation identity. Losing those files does
 not rotate credentials or delete remote resources. The installer does not delete
 resources automatically after a failed installation.
 
 For cluster-only preparation without working external DNS/TLS, explicitly set
-`MEF_VERIFY_HTTPS='false'`. The result then says external verification is **PENDING**;
+`MEF_VERIFY_HTTPS='false'` and `MEF_INSTALL_PLUGINS='false'`. Automatic plugin setup
+always requires working API HTTPS with a trusted certificate, even when the general
+HTTPS checks are disabled. The result then says external verification is **PENDING**;
 it is not a completed public-access check. Keep verification enabled for a normal
 public deployment.
 
+
 ---
 
-## 1. Prepare the repository and namespace
+<a id="manual-installation"></a>
+## B · Install manually with Helm
+
+This path performs the same deployment in eight explicit steps. It does not run
+`install.sh`. Complete each **OK** condition before continuing.
+
+| Step | Action | Ready to continue when |
+| :--- | :--- | :--- |
+| [1](#1-prepare-the-repository-and-namespace) | Select the cluster and create the namespace | Nodes are Ready; namespace is `mef-dev` |
+| [2](#2-configure-values-and-secrets) | Prepare Entra ID, values, Secrets and shared PVCs | IDs/URLs match; Secrets and claims exist |
+| [3](#3-install-databases) | Install SQL Server and pgvector | Both databases are Ready; `vector` exists |
+| [4](#4-run-the-database-migration) | Create the application schema | Migration Job completes successfully |
+| [5](#5-install-applications) | Install API, Servicehost, Knowledge Graph and Apps | Releases are deployed; Pods and PVCs are ready |
+| [6](#networking) | Connect one Ingress or Gateway profile | DNS, TLS and HTTPS work |
+| [7](#7-install-plugins-and-complete-platform-setup) | Stage packages, complete setup and assign access | The intended Microsoft user can access the plugins |
+| [8](#8-verify-the-complete-installation) | Verify the complete installation | BPMN and ProductCatalogAI operations succeed |
+
+Keep the complete installation values in `helm/values/` and credentials in
+`.local/secrets/`. The `values.yaml` inside each chart is only a pointer: every Helm
+command below explicitly passes the complete file.
+
+### 1. Prepare the repository and namespace
 
 ```bash
 git clone --branch dev https://github.com/mef-dev/k8s.git
 cd k8s
 
 export KUBECONFIG="$HOME/.kube/config"
-export KUBE_CONTEXT="$(kubectl config current-context)"
+kubectl config get-contexts
+# Choose the intended cluster explicitly from the list above.
+export KUBE_CONTEXT='YOUR_CONTEXT_NAME'
 
-kubectl --context "$KUBE_CONTEXT" get nodes
-kubectl --context "$KUBE_CONTEXT" get storageclass
+kubectl --context "$KUBE_CONTEXT" --namespace mef-dev get nodes
+kubectl --context "$KUBE_CONTEXT" --namespace mef-dev get storageclass
 kubectl --context "$KUBE_CONTEXT" create namespace mef-dev --dry-run=client -o yaml | \
   kubectl --context "$KUBE_CONTEXT" apply -f -
 ```
@@ -302,11 +422,12 @@ NAME       STATUS   ROLES           AGE   VERSION
 worker-1   Ready    <none>          10d   v1.35.0
 ```
 
-**OK:** the selected context is your intended cluster and the nodes are `Ready`.
+**OK:** `KUBE_CONTEXT` names your intended cluster and its nodes are `Ready`.
+Keep this terminal open: the following steps reuse `KUBECONFIG` and `KUBE_CONTEXT`.
 A default StorageClass must exist when `persistence.storageClass` is empty. Otherwise,
 set an available class in each persistent component's values, or provide an `existingClaim`.
 
-## 2. Configure values and Secrets
+### 2. Configure values and Secrets
 
 | Component | Purpose | Complete values |
 | :--- | :--- | :--- |
@@ -347,7 +468,7 @@ Before applying resources, review these installation-specific settings:
 | Public routing | Domain names, TLS Secret and the selected IngressClass / Gateway |
 
 <a id="microsoft-entra-id"></a>
-### Configure Microsoft Entra ID
+#### Configure Microsoft Entra ID
 
 Microsoft Entra ID is enabled by default and is the primary way to sign in.
 Create an App Registration owned by the administrator of this installation.
@@ -412,7 +533,6 @@ Keep the secret in the API Secret and your secret manager.
   "apiUrl": "https://api.example.com",
   "apiUrl2": "",
   "EntraIdAuthClientId": "REPLACE_ENTRA_CLIENT_ID",
-  "LinkedInClientId": "",
   "EntraIdAuthUrl": "https://login.microsoftonline.com/REPLACE_ENTRA_TENANT_ID",
   "contactPhone": ""
 }
@@ -431,7 +551,7 @@ API and Apps are installed in step 5, after the databases and schema are ready.
 Password login remains available for provisioned local administrator accounts;
 Microsoft is the primary login for users in this setup.
 
-### Prepare credentials
+#### Prepare credentials
 
 Copy Secret templates into the ignored local directory:
 
@@ -471,7 +591,7 @@ servicehost-secrets   Opaque   2      1m
 **OK:** all five Secrets exist with the required keys. This listing hides their contents;
 Secret existence alone does not confirm a correct database password.
 
-### Create shared application PVCs
+#### Create shared application PVCs
 
 Edit [helm/values/storage.yaml](helm/values/storage.yaml) and select your RWX-capable
 StorageClass for `front`, `back` and `api-config`. An empty `storageClass` selects the
@@ -502,7 +622,7 @@ If these named PVCs already belong to another release or are managed manually, s
 `claims.<name>.create: false` for those claims in `storage.yaml`. The chart will not
 adopt or modify them. All application PVC references must resolve in `mef-dev`.
 
-## 3. Install databases
+### 3. Install databases
 
 Run each Helm command successfully before continuing:
 
@@ -548,7 +668,7 @@ Expected output:
 
 **OK:** the target PostgreSQL database contains the `vector` extension.
 
-## 4. Run the database migration
+### 4. Run the database migration
 
 Review `helm/values/db-update.yaml`. The supplied file enables migration and creates
 a new UCP database. For an existing database, set `database.createIfMissing: false`,
@@ -583,7 +703,7 @@ select the image default. Preserve the existing layout for an existing database.
 See [database migration procedure](#database-update) for
 existing databases and subsequent migrations.
 
-## 5. Install applications
+### 5. Install applications
 
 ```bash
 helm upgrade --install api helm/charts/api \
@@ -620,7 +740,7 @@ STATUS: deployed
 REVISION: 1
 ```
 
-### List the created objects
+#### List the created objects
 
 ```bash
 kubectl --context "$KUBE_CONTEXT" --namespace mef-dev get deployments,statefulsets
@@ -632,11 +752,11 @@ Expected workload state:
 
 ```text
 NAME                              READY   UP-TO-DATE   AVAILABLE   AGE
-deployment.apps/api           1/1     1            1           5m
-deployment.apps/apps          1/1     1            1           4m
-deployment.apps/knowledge-graph        1/1     1            1           5m
-deployment.apps/servicehost    1/1     1            1           5m
-deployment.apps/plantuml       1/1     1            1           4m
+deployment.apps/api               1/1     1            1           5m
+deployment.apps/apps              1/1     1            1           4m
+deployment.apps/knowledge-graph   1/1     1            1           5m
+deployment.apps/servicehost       1/1     1            1           5m
+deployment.apps/plantuml          1/1     1            1           4m
 
 NAME                        READY   AGE
 statefulset.apps/mssql      1/1     10m
@@ -683,7 +803,7 @@ Database headless Services also appear. **OK:** long-running Pods are Ready, app
 Helm releases have `deployed` status, and the migration completed. API readiness checks its HTTP liveness endpoint; servicehost readiness checks its TCP
 listener. Check application access after connecting ingress.
 
-### Health probes
+#### Health probes
 
 | Component | Startup | Readiness | Liveness |
 | :--- | :--- | :--- | :--- |
@@ -709,7 +829,7 @@ API liveness responses and TCP checks do not verify login, background jobs or da
 schema. `pg_isready` checks server acceptance, not credentials or the vector extension.
 
 <a id="networking"></a>
-## 6. Connect Ingress or Gateway
+### 6. Connect Ingress or Gateway
 
 Choose one routing path for each application. All profiles are in
 [`helm/values/ingress/`](helm/values/ingress/):
@@ -723,16 +843,18 @@ Choose one routing path for each application. All profiles are in
 | [Traefik / HAProxy Ingress](#other-classic-controllers) | Use your existing controller | `classic/traefik/` or `classic/haproxy/` |
 
 Application profiles contain settings to merge into the complete component values file.
-Controller values are passed only to the controller chart. Files containing `apiVersion`
+Controller values are passed only to the controller chart. Configure one controller
+and its application routes, then continue to [step 7](#7-install-plugins-and-complete-platform-setup).
+Files containing `apiVersion`
 and `kind` are Kubernetes manifests; apply only the selected ones, not the entire directory.
 
-### Classic ingress-nginx
+#### Classic ingress-nginx
 
 Community ingress-nginx is a legacy option: maintenance ended in March 2026.
 See the [upstream announcement](https://kubernetes.io/blog/2025/11/11/ingress-nginx-retirement/).
 NGINX Gateway Fabric below is a separate project.
 
-#### Install the controller
+##### Install the controller
 
 ```bash
 helm upgrade --install mef-ingress-nginx ingress-nginx \
@@ -774,7 +896,7 @@ For direct HTTPS diagnostics, use the [port-forward procedure](#check-https-rout
 If using an existing controller instead, set the application profile's
 `ingress.className` to its actual IngressClass.
 
-#### Create TLS credentials
+##### Create TLS credentials
 
 Use a certificate covering all application domains:
 
@@ -800,7 +922,7 @@ mef-tls   kubernetes.io/tls   2      1m
 **OK:** the Secret is in the application namespace with certificate and private-key
 entries. The certificate must cover the exact configured hostnames.
 
-#### Configure and expose applications
+##### Configure and expose applications
 
 Merge each `classic/ingress-nginx/<component>.yaml` profile into
 `helm/values/<component>.yaml`. For API, the routing section is:
@@ -831,11 +953,14 @@ same way using their profiles. Update frontend API URLs and API authentication/C
 settings for your domains. Then apply the complete values with Helm:
 
 ```bash
-for component in api servicehost knowledge-graph apps; do
-  helm upgrade --install "$component" "helm/charts/$component" \
-    --kube-context "$KUBE_CONTEXT" --namespace mef-dev \
-    -f "helm/values/$component.yaml" --wait --timeout 10m || break
-done
+(
+  set -e
+  for component in api servicehost knowledge-graph apps; do
+    helm upgrade --install "$component" "helm/charts/$component" \
+      --kube-context "$KUBE_CONTEXT" --namespace mef-dev \
+      -f "helm/values/$component.yaml" --wait --timeout 10m
+  done
+)
 
 kubectl --context "$KUBE_CONTEXT" --namespace mef-dev get svc mef-ingress-nginx-controller
 kubectl --context "$KUBE_CONTEXT" --namespace mef-dev get ingress
@@ -858,14 +983,14 @@ Point your domain DNS records to the controller's external address. Repeat the s
 Helm command after changing a component's routing settings. Install optional PlantUML
 using its own values file and matching profile.
 
-#### Other classic controllers
+##### Other classic controllers
 
 `classic/traefik/` and `classic/haproxy/` connect application Ingress objects to existing
 controllers with classes `traefik` and `haproxy`. Replace those class names if necessary.
 Traefik must have `providers.kubernetesIngress.enabled: true`; the Gateway-only Traefik
 profile below disables that provider. Use annotations belonging to the chosen controller.
 
-### Gateway API controllers
+#### Gateway API controllers
 
 | Controller | Helm chart | Notes |
 |---|---|---|
@@ -886,18 +1011,19 @@ Application and controller releases use namespace `mef-dev`.
 Controller examples use LoadBalancer for public access. Configure the cluster load
 balancer before publishing the application DNS records.
 
-#### NGINX Gateway Fabric
+##### NGINX Gateway Fabric
 
 ```bash
 helm upgrade --install mef-ngf oci://ghcr.io/nginx/charts/nginx-gateway-fabric \
   --version 2.6.7 --kube-context "$KUBE_CONTEXT" --namespace mef-dev --create-namespace \
-  -f helm/values/ingress/gateway/nginx-gateway-fabric/controller-values.yaml
+  -f helm/values/ingress/gateway/nginx-gateway-fabric/controller-values.yaml \
+  --wait --timeout 10m
 ```
 
 The chart installs NGF-specific CRDs. The common Gateway API CRDs are a separate prerequisite.
 [Upstream installation](https://docs.nginx.com/nginx-gateway-fabric/install/helm/).
 
-#### Envoy Gateway
+##### Envoy Gateway
 
 Install only Envoy-specific CRDs so the chart's bundled common Gateway API CRDs do not replace a
 cluster-managed version:
@@ -910,21 +1036,23 @@ kubectl --context "$KUBE_CONTEXT" apply --server-side \
   -f .local/vendor/gateway-helm/charts/crds/crds/generated/
 helm upgrade --install mef-eg .local/vendor/gateway-helm --skip-crds --set crds.gatewayAPI.safeUpgradePolicy.enabled=false \
   --kube-context "$KUBE_CONTEXT" --namespace mef-dev --create-namespace \
-  -f helm/values/ingress/gateway/envoy-gateway/controller-values.yaml
+  -f helm/values/ingress/gateway/envoy-gateway/controller-values.yaml \
+  --wait --timeout 10m
 kubectl --context "$KUBE_CONTEXT" apply -f helm/values/ingress/gateway/envoy-gateway/gatewayclass.yaml
 ```
 
 The Envoy control-plane Service type is distinct from the generated Envoy data-plane Service.
 [Upstream installation](https://gateway.envoyproxy.io/docs/tasks/quickstart/).
 
-#### Traefik
+##### Traefik
 
 ```bash
 helm repo add traefik https://traefik.github.io/charts
 helm repo update traefik
 helm upgrade --install mef-traefik traefik/traefik --version 41.7.1 \
   --kube-context "$KUBE_CONTEXT" --namespace mef-dev --create-namespace \
-  -f helm/values/ingress/gateway/traefik/controller-values.yaml
+  -f helm/values/ingress/gateway/traefik/controller-values.yaml \
+  --wait --timeout 10m
 ```
 
 If the Traefik CRDs are already managed by your distribution, inspect compatibility and use `--skip-crds`
@@ -933,7 +1061,7 @@ The example uses explicit class `mef-traefik`. Traefik's default container entry
 so its Gateway listeners use those ports; its Service exposes client ports 80/443.
 [Upstream chart](https://github.com/traefik/traefik-helm-chart).
 
-### TLS, Gateway and application routes
+#### TLS, Gateway and application routes
 
 Prepare a certificate covering all configured application hostnames (for example your actual replacements
 for apps.example.com, api.example.com, etc.). Keep private keys in your secret manager/protected files:
@@ -957,7 +1085,7 @@ and TLS certificate SANs. Update the frontend origin in any selected CORS policy
 
 ```bash
 helm upgrade --install api helm/charts/api --kube-context "$KUBE_CONTEXT" --namespace mef-dev \
-  -f helm/values/api.yaml
+  -f helm/values/api.yaml --wait --timeout 10m
 ```
 
 The examples keep Gateway, routes, certificate and backend Services in the same namespace.
@@ -965,7 +1093,7 @@ For a shared Gateway in another namespace, set `gateway.parentRefs[].namespace` 
 its listener's `allowedRoutes`. Cross-namespace backend/Secret references additionally need suitable
 ReferenceGrants; do not grant unrelated namespaces indiscriminate access.
 
-### Controller-specific settings
+#### Controller-specific settings
 
 - For NGF or Envoy standard HTTPRoute CORS, merge `gateway/common/cors.yaml` into the
   API routing settings. Set the exact allowed frontend origin.
@@ -1036,7 +1164,7 @@ and HTTPS access returns the expected application response.
 | API liveness works but login fails | API/frontend URLs, authentication settings and database/account data |
 
 
-### Check HTTPS routing through the controller
+#### Check HTTPS routing through the controller
 
 To inspect HTTPS routing independently of public DNS and load-balancer connectivity,
 forward the community ingress-nginx controller's HTTPS port in one terminal:
@@ -1068,7 +1196,7 @@ is trusted by the system. **OK:** the command prints `HTTP 200`. Keep port-forwa
 running while using this endpoint. For Gateway controllers, forward port 443 of the
 selected data-plane Service instead; the control-plane Service is not the application endpoint.
 
-### Open the applications
+#### Open the applications
 
 Replace these example domains with those configured in values and DNS:
 
@@ -1099,20 +1227,62 @@ returns 200 and the frontend opens. Login and enabled business integrations addi
 require their configured accounts, database data and external services. Servicehost
 is a background service; its root URL is not a required public web page.
 
----
 
-### Verify Microsoft sign-in
+<a id="verify-microsoft-sign-in"></a>
+### 7. Install plugins and complete platform setup
 
-Complete [networking](#networking) first: the Apps and API domains must resolve and
-serve HTTPS with a trusted certificate. Then follow the browser flow:
+Finish this step after the applications are Ready and their public HTTPS routes work.
+Stage the bundle **before** saving the platform setup wizard so its Manifest step can
+list the packages. This section is for a new manual installation; a default script
+installation has already performed these actions.
 
-Open `https://apps.example.com/login`, choose Microsoft and complete sign-in/consent.
-On a fresh database, complete the normal account-registration screen. The first
-account then reaches the platform setup wizard; on an existing installation,
-access follows its tenant and user permissions. Microsoft sign-in does not by itself
-complete root-tenant, Servicehost or SMTP setup.
+#### 7.1. Copy the bundle to the shared volume
 
-Expected browser Network results after login:
+The supplied files are in [deployment-packages](deployment-packages/). Keep the ZIPs
+compressed. The API imports them from `/storage/ProdK8S/bundle/` on the shared `front`
+PVC; no separate plugin PVC is needed.
+
+Run from the repository root in the terminal prepared in step 1:
+
+```bash
+(
+  set -eu
+  for package in deployment-packages/*.zip deployment-packages/manifest.json; do
+    test -f "$package"
+    kubectl --context "$KUBE_CONTEXT" --namespace mef-dev exec -i deployment/api -- \
+      sh -ec '
+        umask 0002
+        mkdir -p /storage/ProdK8S/bundle
+        cat > "/storage/ProdK8S/bundle/$1.partial"
+        mv "/storage/ProdK8S/bundle/$1.partial" "/storage/ProdK8S/bundle/$1"
+      ' sh "$(basename -- "$package")" < "$package"
+  done
+)
+```
+
+The archives are copied first and `manifest.json` last. A failed copy stops the block.
+Compare the checksums of the local files and the copies on the PVC:
+
+```bash
+sha256sum deployment-packages/BPMN.zip \
+  deployment-packages/ProductCatalogAI.zip deployment-packages/manifest.json
+
+kubectl --context "$KUBE_CONTEXT" --namespace mef-dev exec deployment/api -- \
+  sha256sum /storage/ProdK8S/bundle/BPMN.zip \
+  /storage/ProdK8S/bundle/ProductCatalogAI.zip /storage/ProdK8S/bundle/manifest.json
+```
+
+**OK:** each filename has the same SHA-256 in both listings. The manifest names the
+ZIPs exactly, including case. See [the bundle format](#plugin-packages-and-repeat-runs)
+when changing the supplied package selection.
+
+#### 7.2. Sign in with Microsoft and register the first account
+
+Open `https://apps.example.com/login` using your configured Apps hostname. Choose
+**Microsoft**, complete sign-in/MFA and any consent required by your tenant, then
+complete the MEF registration screen. Store the registration PIN securely.
+
+Expected browser Network results:
 
 ```text
 GET  /api/v0/auth/signin-entraid    302  → Apps auth callback
@@ -1120,17 +1290,163 @@ POST /api/v0/auth/verify/EntraId    200
 GET  /api/v0/account/organizations  200
 ```
 
-The browser may receive `404` from `verify/EntraId` for a first-time user before completing account
-registration. **OK:** Apps opens the application/setup wizard, protected API requests
-succeed and reloading the page keeps the session. Check request paths/statuses without
-copying authorization codes, cookies, tokens or profile response bodies into reports.
-For secret rotation, update the local Secret, apply it and restart API before removing
-the old credential in Entra ID.
-For a Bash installation, create the replacement credential in the same App Registration,
-set `MEF_ENTRA_MODE='existing'`, its current client ID and the new secret Value in
-`.local/install.env`, then rerun `./install.sh`. It updates the API Secret and rolls
-out API using the credential fingerprint. Verify Microsoft sign-in before deleting
-the old Entra credential; keep existing mode so later runs retain the replacement.
+A first-time user can receive `404` from `verify/EntraId` before registration; after
+registration, a tenant session must be established. **OK:** Apps opens the platform
+setup wizard and protected API requests succeed.
+
+#### 7.3. Complete the platform setup wizard
+
+| Wizard step | What to configure |
+| :--- | :--- |
+| **Root's Tenant** | Your organization name and its allowed email domains. Create a strong password for the local `root` administrator and store it in your secret manager. |
+| **ServiceHost connection** | Enable the connection and use `http://servicehost:7000`; this address is reached by API inside the cluster. |
+| **SMTP Settings** | Configure your own SMTP or select a mail option authorized by your organization. Accept a third-party provider's terms only if your organization chooses that service. |
+| **Access settings** | Keep Entra ID enabled and multi-tenant mode disabled for this single-company setup. Retain password login for the local administrator. Disable unused providers. |
+| **Manifest** | Enable `bpmn.bpmn-designer` and `ai.ProductCatalogAI`, or select the subset you intend to install. If the list is empty, check the bundle location and manifest before saving. |
+| **Check the settings** | Review the organization, connections, authentication and selected packages, then save and confirm setup. |
+| **Setup completed** | Finish the wizard and proceed to user access assignment. |
+
+The platform imports the selected packages during setup. Helm installs the platform;
+the MEF importer registers the plugins and their versions. Repeatedly reinstalling
+the API Helm release is not a plugin import procedure.
+
+ProductCatalogAI uses `api-secrets/pgvector` through the supplied
+`ChatBot_Storage__Connection` binding in [API values](helm/values/api.yaml). Keep that
+binding and fill the Secret with the same PostgreSQL database/user/password used in
+step 3. Its application tables are created by the plugin on first backend use.
+
+#### 7.4. Give the Microsoft user access
+
+Sign in to Apps using the **local root account created in the wizard**. Use the
+namespace/service access controls to enable the installed namespaces for your
+organization and assign the required services to the intended Microsoft user:
+
+| Namespace | Service to assign | User |
+| :--- | :--- | :--- |
+| `bpmn` | `bpmn-designer` | The registered Microsoft user who will open BPMN Designer |
+| `ai` | `ProductCatalogAI` | The registered Microsoft user who will call its backend API |
+
+Organization availability and user assignment are separate actions. A published
+plugin alone does not give every user access. Additional users must first register
+through Microsoft and receive their own assignments; do not grant `root` merely to
+make an application visible.
+
+<details>
+<summary><strong>API equivalents for administrators managing permissions directly</strong></summary>
+
+Use an authenticated API client with a root MEF session. Obtain that session through
+`POST /api/v0/auth/login` using the root credentials and, when needed, the selected
+MEF organization ID. This is the numeric MEF tenant ID, not the Entra Directory GUID.
+Use the returned `accessToken` as the Bearer credential without publishing the response.
+
+Discover IDs from this installation; do not assume namespace or service IDs are `1` or `2`.
+For paginated lists, inspect subsequent pages if the intended record is not on the first page.
+
+| Request | Purpose |
+| :--- | :--- |
+| `GET /api/v0/users?page=0&pagesize=100` | Find the registered user's ID and confirm its email. |
+| `GET /api/v0/namespaces?page=0&pagesize=100` | Find the namespace whose `alias` is `bpmn` or `ai`. |
+| `GET /api/v0/namespaces/{namespaceId}` | Find `services[].serviceId` by the exact `pluginName` from the table above. |
+| `POST /api/v0/namespaces/{namespaceId}/request` | Enable/request the namespace for the current organization. |
+| `POST /api/v0/namespaces/{namespaceId}/user/{serviceId}` | Assign the service to the intended user. |
+
+The last request body is:
+
+```json
+{
+  "userId": "REGISTERED_MEF_USER_ID",
+  "assigned": true
+}
+```
+
+Repeat the namespace request and user assignment for each required service. Verify
+HTTP 200 responses, then check access using the target user's Microsoft session.
+
+</details>
+
+Sign out of root and sign in with Microsoft. **OK:** the intended user sees the BPMN
+application and can open the modeler; ProductCatalogAI requests succeed under that
+user's session. The Microsoft user remains a normal user.
+
+### 8. Verify the complete installation
+
+Use this finish check for **either installation path**. For script installations,
+first load `.local/install.env` and set `KUBE_CONTEXT="$MEF_KUBE_CONTEXT"`; the commands
+below use the default namespace `mef-dev`.
+
+#### Save and execute a BPMN workflow
+
+1. Sign in with the Microsoft user who received plugin access and open **BPMN Designer**.
+2. Create a **Personal** library and a new flow using the supplied Hello world template.
+3. Save it as `hello-world`, reload the page and reopen the saved flow.
+4. Select **Build → Compile** and confirm compilation succeeds.
+5. Select **Build → Execute**, enter `{}` as input, then run it.
+
+Expected output from the supplied template:
+
+```json
+{
+  "marker": "Hello world",
+  "result": 42
+}
+```
+
+**OK:** the definition survives reloading and execution returns the expected result.
+A saved diagram or successful compile alone does not confirm execution.
+
+#### Verify ProductCatalogAI and PostgreSQL
+
+Using the assigned Microsoft user's MEF session in an authenticated API client, call:
+
+```http
+GET /api/v2/ai/threads/list?page=1&pageSize=1
+```
+
+**OK:** HTTP 200 with a JSON `items` array; the array may be empty on a new database.
+This loads the backend plugin and exercises its PostgreSQL connection. The pgvector
+extension was verified in step 3, or automatically by the script.
+
+Confirm the plugin's tables are present:
+
+```bash
+kubectl --context "$KUBE_CONTEXT" --namespace mef-dev exec -i pgvector-0 -- \
+  sh -ec 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1' <<'SQL'
+SELECT tablename
+FROM pg_catalog.pg_tables
+WHERE schemaname = 'public'
+  AND tablename IN (
+    'ChatThreads', 'ChatMessages', 'ChatTags',
+    '__EFMigrationsHistory_ProductCatalogAI'
+  )
+ORDER BY tablename;
+SQL
+```
+
+Expected rows:
+
+```text
+ChatMessages
+ChatTags
+ChatThreads
+__EFMigrationsHistory_ProductCatalogAI
+```
+
+#### Completion checklist
+
+| Area | Expected result |
+| :--- | :--- |
+| Kubernetes | Application Pods are Ready and their Helm releases are deployed |
+| Persistent storage | `front`, `back`, `api-config`, `mssql` and `pgvector` are Bound |
+| SQL schema | Initial migration completed successfully |
+| DNS and TLS | Correct application hostnames; trusted HTTPS; API reachable from its own Pod |
+| Microsoft sign-in | The intended user can sign in and retain the session after a page reload |
+| BPMN | Saved flow reopens, compiles and returns the expected result |
+| ProductCatalogAI | Assigned user receives HTTP 200 and the PostgreSQL tables exist |
+
+After these checks, continue to [operations](#operations) for updates, backups and
+credential rotation. Configure additional business integrations with their own
+accounts and endpoints as needed.
+
 
 ---
 
@@ -1184,6 +1500,17 @@ application; coordinate database restarts separately.
 
 **OK:** the Helm revision increases, the Deployment rollout completes and API access
 still works. For a schema update, use the separate [migration procedure](#database-update).
+
+### Rotate the Entra client secret
+
+For secret rotation, update the local Secret, apply it and restart API before removing
+the old credential in Entra ID.
+For a Bash installation, create the replacement credential in the same App Registration,
+set `MEF_ENTRA_MODE='existing'`, its current client ID and the new secret Value in
+`.local/install.env`, then rerun `./install.sh`. It updates the API Secret and rolls
+out API using the credential fingerprint. Verify Microsoft sign-in before deleting
+the old Entra credential; keep existing mode so later runs retain the replacement.
+
 
 <a id="database-update"></a>
 ### Database migration procedure
@@ -1301,10 +1628,66 @@ resources; it does not undo database migrations or mutations of persistent files
 
 Use these sections when adapting the installation to your environment.
 
+### Plugin packages and repeat runs
+
+Keep these files together in [deployment-packages](deployment-packages/):
+
+```text
+deployment-packages/
+├── manifest.json
+├── BPMN.zip
+└── ProductCatalogAI.zip
+```
+
+The manifest defines which packages to import:
+
+```json
+{
+  "BundleVersion": "2.2.6.21",
+  "Artifacts": [
+    {"Namespace": "bpmn", "Name": "bpmn-designer", "Path": "BPMN.zip", "Enable": true},
+    {"Namespace": "ai", "Name": "ProductCatalogAI", "Path": "ProductCatalogAI.zip", "Enable": true}
+  ]
+}
+```
+
+Before the first installation, set `Enable: false` to omit a package. The installer
+rejects missing/corrupt ZIPs, unsafe archive paths and duplicate plugin names.
+At least one artifact must be enabled when `MEF_INSTALL_PLUGINS=true`.
+Do not extract ZIPs manually: the MEF bundle importer handles metadata, versions and
+registration. The files are staged at API path `/storage/ProdK8S/bundle/` on `front`;
+BPMN UI files and backend assemblies are then installed by MEF on that same PVC.
+
+ProductCatalogAI uses the `ChatBot_Storage__Connection` environment variable declared
+in [API values](helm/values/api.yaml). Its value comes from `api-secrets`, key
+`pgvector`, and points to the installed PostgreSQL `mef` database. The prefix belongs
+to the package's storage provider. The plugin applies its EF schema migrations when
+first loaded. The installer calls its list endpoint as the Microsoft user and checks
+the `vector` extension and a vector-distance query; a Running Pod alone is insufficient.
+
+Run the same command to resume:
+
+```bash
+./install.sh
+```
+
+Unchanged bundles are not reimported, platform settings and credentials are preserved,
+and access assignments are reapplied and checked. An interrupted initial setup can
+resume using the saved root credentials. Keep `.local/installer/` intact. A different
+bundle checksum, a different bootstrap email, or an independently configured platform
+stops automatic setup instead of overwriting it. Use MEF's plugin publishing workflow
+for subsequent package upgrades. SMTP and other company integrations are configured
+separately in Apps.
+
+For the manual path, follow [step 7](#7-install-plugins-and-complete-platform-setup)
+for staging, the setup wizard and user access. Automatic setup is intended for new
+installations owned by the script.
+
+
 <a id="application-configuration"></a>
 ### Application configuration
 
-Edit only `helm/values/<component>.yaml` for an installation, then repeat its
+For the manual path, edit `helm/values/<component>.yaml`, then repeat its
 `helm upgrade --install` command. API and servicehost contain the complete
 `config.appsettings` structure; Helm generates appsettings.json from that object.
 Frontend URLs and login-provider settings are in `apps.yaml`, under
@@ -1317,11 +1700,10 @@ Configure Microsoft sign-in using [step 2](#microsoft-entra-id).
 Set `AuthOptions.Issuer`, `Audience`, `Domain`, token lifetimes and authentication options
 under `config.appsettings`. Replace example domains with your own domains.
 Current MEF session tokens omit `iss` and `aud`, so the values use `ValidateIssuer: false`
-and `ValidateAudience: false`. Keep `ValidateIssuerSigningKey: true`, the expiry check
-and the image's matching signing keys. Revisit the two
-claim checks when upgrading to an API image that emits those claims.
-Configure EntityGenerator, Opendatabot and provider endpoints only when those services
-are available. OAuth providers also need their public client ID, redirect URI and
+and `ValidateAudience: false`. Keep `ValidateIssuerSigningKey: true` and token
+expiry validation enabled. Revisit the two claim checks when upgrading to an API image that emits those claims.
+Configure optional service and provider endpoints only when those integrations
+are enabled. OAuth providers also need their public client ID, redirect URI and
 Secret-bound credentials. Database connections come from `api-secrets`.
 
 Credentials are bound under `env`, for example:
@@ -1376,13 +1758,9 @@ Add only the bindings for integrations you activate:
 |---|---|---|
 | `AuthOptions__EntraId__ClientSecret` (already bound) | `api-secrets` | `entraClientSecret` |
 | `AuthOptions__Google__ClientSecret` | `api-integrations` | `googleClientSecret` |
-| `AuthOptions__IdGovUa__ClientSecret` | `api-integrations` | `idGovUaClientSecret` |
-| `AuthOptions__IdGovUa__PKeyPassword` | `api-integrations` | `idGovUaPKeyPassword` |
-| `AuthOptions__Linkedin__ClientSecret` | `api-integrations` | `linkedinClientSecret` |
 | `Serilog__WriteTo__2__Args__configureSink__0__Args__connectionString` | `api-integrations` | `serilogMssqlConn` |
 | `Serilog__WriteTo__3__Args__configureSink__0__Args__connectionString` | `api-integrations` | `node1Connection` |
 | `Serilog__WriteTo__4__Args__configureLogger__WriteTo__0__Args__connectionGlobalHeaders` | `api-integrations` | `serilogElasticHeader` |
-| `OpendatabotApiKey` | `api-integrations` | `opendatabotApiKey` |
 | `Serilog__WriteTo__3__Args__configureLogger__WriteTo__0__Args__configure__0__Args__userName` | `servicehost-integrations` | `smtpUser` |
 | `Serilog__WriteTo__3__Args__configureLogger__WriteTo__0__Args__configure__0__Args__password` | `servicehost-integrations` | `smtpPassword` |
 | `Tasks__HttpClients__0__Headers__Authorization` | `servicehost-integrations` | `workflowServiceAuth` |
@@ -1396,17 +1774,6 @@ Add only the bindings for integrations you activate:
 `config.existingSecret` or `config.existingConfigMap` mounts an external complete file.
 These whole-file modes bypass the disabled-task/log-sink lists: the supplied file must
 itself disable unwanted integrations. Keep credentials out of ConfigMaps and public values.
-
-The API image supplies `/app/appsettings.json.aes` together with its matching keys.
-The supplied values preserve that encrypted configuration/key pair and mount the
-installation settings at `/app/appsettings.json`. Environment bindings provide credentials.
-Do not replace only `/app/public_key.xml` or `/app/private_key.xml`: custom key pairs
-require a matching encrypted configuration supplied by the image publisher.
-For a coordinated custom set, mount its files from a Secret as read-only files at
-`/app/public_key.xml`, `/app/private_key.xml` and `/app/appsettings.json.aes`.
-Kerberos configuration uses `/etc/krb5.conf` and `env.KRB5_CONFIG: /etc/krb5.conf`.
-Add Secret volumes and read-only subPath mounts in the component's `volumes` and
-`volumeMounts` lists. Create the Secrets before upgrading the release.
 
 API shared files use `/storage/ProdK8S`; Apps sees the same files under `/storage`.
 Servicehost uses `/storage/ProdK8S`, `/files/config` and `/mefdev_storage/packages`
@@ -1528,7 +1895,6 @@ contains the same application schema. The chart bypasses the image's built-in se
 password change separately. The same applies to PostgreSQL's initialization password variables.
 
 `db-update` runs only after explicit opt-in; see [database update](#database-update).
-`storage-control` is not included. Shared storage must be managed explicitly. Process readiness does not establish that application data and background workflows are ready.
 
 
 #### Existing installations and shared storage
@@ -1589,6 +1955,9 @@ Use your explicit kubeconfig/context and application namespace on each command.
 | `ConfigService::ConfigSection is null` | Task-host `Tasks` object and required `HttpClients` configuration |
 | API Ready but SQL errors | Actual database/schema and credentials; a successful probe does not verify business operations |
 | PVC Pending | StorageClass, access mode, capacity and WaitForFirstConsumer scheduling |
+| Plugin setup cannot authenticate | Azure CLI must use a delegated user from the configured tenant matching `MEF_SETUP_EMAIL`; renew the Azure CLI user login if needed |
+| ProductCatalogAI cannot reach PostgreSQL | `ChatBot_Storage__Connection` must reference `api-secrets/pgvector`; inspect the plugin endpoint and PostgreSQL schema |
+| Plugin import returns HTTP 409 | Verify that the API public hostname resolves and is reachable from its Pod; inspect API logs |
 | PostgreSQL lacks vector extension | Initialization runs once; create the extension in the correct existing database |
 | SQL auth fails after Secret change | Database password and bootstrap env password are distinct after initialization |
 | Gateway rejects route | `Accepted`, `ResolvedRefs`, parent name/namespace/sectionName, allowedRoutes and feature support |
@@ -1596,8 +1965,7 @@ Use your explicit kubeconfig/context and application namespace on each command.
 | Browser login fails while curl works | CORS preflight, allowed origin, credentials and cookie domain/SameSite/Secure |
 | Microsoft button is missing | `AuthOptions.EntraIdAuth: true` in API and matching Client ID/authority in Apps |
 | Microsoft callback fails | Web redirect URI on the public API, identical tenant/client IDs, client secret Value and expiry |
-| Login succeeds then API returns HTTP 455 | Preserve the supplied MEF token validation settings and matching signing key pair |
-| API exits with a cryptographic padding error | Preserve the image's matching encrypted configuration/key pair; do not replace individual key files |
+| Login succeeds then API returns HTTP 455 | Check token expiry and preserve the supplied MEF token validation settings |
 | External config updated but app unchanged | Restart Pods using external ConfigMap/Secret file subPath or env values |
 
 Collect scoped events, Pod status and application errors. Redact passwords, connection strings, bearer

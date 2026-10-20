@@ -21,7 +21,6 @@ release first; see the [mount mapping](../../../README.md#storage-and-databases)
 
 Microsoft Entra ID is the primary sign-in method. Configure your own App Registration
 as described in [installation step 2](../../../README.md#microsoft-entra-id).
-The supplied values preserve the image's matching encrypted configuration/key pair.
 
 The chart's `values.yaml` is only a pointer. Always pass the complete
 [api.yaml](../../values/api.yaml) with `-f`; chart-only installation is rejected by schema validation.

@@ -42,6 +42,12 @@ env:
       secretKeyRef:
         name: api-secrets
         key: pgvector
+  # ProductCatalogAI storage provider prefix, as declared by the plugin package.
+  ChatBot_Storage__Connection:
+    valueFrom:
+      secretKeyRef:
+        name: api-secrets
+        key: pgvector
   # Required Microsoft sign-in credential; fill the separate Secret before installation.
   AuthOptions__EntraId__ClientSecret:
     valueFrom:

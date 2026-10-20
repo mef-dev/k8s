@@ -15,6 +15,3 @@ commit filled Secrets. Changing a Secret alone does not rotate database credenti
 `api-secrets/entraClientSecret` is required for the primary Microsoft sign-in; fill
 it with the client secret Value from your own App Registration. See
 [Microsoft Entra ID](../../../README.md#microsoft-entra-id).
-
-The API image's encrypted configuration/key pair is preserved. No separate signing-key
-Secret is required by the supplied values.

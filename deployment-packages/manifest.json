@@ -1,0 +1,17 @@
+{
+  "BundleVersion": "2.2.6.21",
+  "Artifacts": [
+    {
+      "Namespace": "bpmn",
+      "Name": "bpmn-designer",
+      "Path": "BPMN.zip",
+      "Enable": true
+    },
+    {
+      "Namespace": "ai",
+      "Name": "ProductCatalogAI",
+      "Path": "ProductCatalogAI.zip",
+      "Enable": true
+    }
+  ]
+}

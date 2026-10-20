@@ -58,6 +58,14 @@ MEF_INSTALL_CONTROLLER='true' # false to use an existing controller
 MEF_ROUTING_CLASS=''          # Optional existing IngressClass/GatewayClass; empty uses profile default
 MEF_INSTALL_PLANTUML='false'
 
+# Install the manifest and ZIPs supplied in deployment-packages/.
+# Azure CLI verifies this user's delegated Microsoft identity for initial MEF registration.
+MEF_INSTALL_PLUGINS='true'
+MEF_SETUP_EMAIL=''           # Microsoft user's mail/UPN; receives access to these plugins
+MEF_ORGANIZATION_NAME=''     # Display name of the new MEF organization
+# Registration PIN and emergency root password are generated in .local/installer/.
+# SMTP stays disabled; configure your own mail provider later in Apps.
+
 # Defaults below are suitable for a new installation. Existing databases use the manual guide.
 MEF_NAMESPACE='mef-dev'
 MEF_SHARED_ACCESS_MODE='ReadWriteMany'
@@ -87,6 +95,7 @@ cd -- "$ROOT"
 : "${MEF_NAMESPACE:=mef-dev}" "${MEF_ENTRA_MODE:=create}" "${MEF_ROUTING_PROFILE:=gateway/nginx-gateway-fabric}"
 : "${MEF_INSTALL_CONTROLLER:=true}" "${MEF_ROUTING_CLASS:=}" "${MEF_INSTALL_PLANTUML:=false}"
 : "${MEF_SHARED_ACCESS_MODE:=ReadWriteMany}" "${MEF_NODE_NAME:=}" "${MEF_VERIFY_HTTPS:=true}"
+: "${MEF_INSTALL_PLUGINS:=true}" "${MEF_SETUP_EMAIL:=}" "${MEF_ORGANIZATION_NAME:=}"
 : "${MEF_HTTPS_CA_FILE:=}" "${MEF_MSSQL_EDITION:=Developer}" "${MEF_ENTRA_CLIENT_ID:=}" "${MEF_ENTRA_CLIENT_SECRET:=}"
 for name in MEF_KUBE_CONTEXT MEF_DOMAIN MEF_SHARED_STORAGE_CLASS MEF_DB_STORAGE_CLASS MEF_TLS_CERT_FILE MEF_TLS_KEY_FILE MEF_ENTRA_TENANT_ID MEF_ACCEPT_SQL_EULA; do
   export "$name=${!name-}"
@@ -94,6 +103,7 @@ done
 export ROOT MEF_NAMESPACE MEF_ENTRA_MODE MEF_ROUTING_PROFILE MEF_INSTALL_CONTROLLER MEF_ROUTING_CLASS
 export MEF_INSTALL_PLANTUML MEF_SHARED_ACCESS_MODE MEF_NODE_NAME MEF_VERIFY_HTTPS MEF_HTTPS_CA_FILE
 export MEF_MSSQL_EDITION MEF_ENTRA_CLIENT_ID MEF_ENTRA_CLIENT_SECRET
+export MEF_INSTALL_PLUGINS MEF_SETUP_EMAIL MEF_ORGANIZATION_NAME
 WORK="$ROOT/.local/installer"
 mkdir -p -- "$WORK"
 chmod 700 -- "$ROOT/.local" "$WORK"
@@ -102,7 +112,7 @@ flock -n 9 || die 'Another installer is using .local/installer; wait for it to f
 # Python handles YAML/JSON and credential-bearing API responses, avoiding shell interpolation.
 helper() {
   python3 - "$@" <<'PYTHON'
-import copy, datetime, hashlib, json, os, re, secrets, subprocess, sys, time, uuid
+import base64, copy, datetime, hashlib, http.client, json, os, re, secrets, shlex, ssl, stat, subprocess, sys, time, urllib.parse, uuid, zipfile
 from pathlib import Path
 import yaml
 root=Path(os.environ['ROOT']); work=root/'.local/installer'; action=sys.argv[1]
@@ -143,6 +153,9 @@ if action=='validate':
     errors=[]
     for name,hint in hints.items():
         if not e(name).strip() or e(name).startswith(('REPLACE_','YOUR_','PENDING_')):errors.append('MEF_'+name+': '+hint)
+    if e('INSTALL_PLUGINS')=='true':
+        if not re.fullmatch(r'[^@\s]+@[^@\s]+\.[^@\s]+',e('SETUP_EMAIL')):errors.append('MEF_SETUP_EMAIL: Microsoft account mail/UPN receiving plugin access')
+        if not e('ORGANIZATION_NAME').strip():errors.append('MEF_ORGANIZATION_NAME: display name of the new MEF organization')
     guid=r'[0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}'
     for name in ['ENTRA_TENANT_ID']+(['ENTRA_CLIENT_ID'] if e('ENTRA_MODE')=='existing' else []):
         if e(name) and not re.fullmatch(guid,e(name)):errors.append('MEF_'+name+': enter a GUID copied from Entra Overview')
@@ -150,7 +163,7 @@ if action=='validate':
     if not re.fullmatch(r'[a-z0-9](?:[-a-z0-9]{0,61}[a-z0-9])?',e('NAMESPACE')):errors.append('MEF_NAMESPACE: use a Kubernetes DNS label (default mef-dev)')
     if e('ROUTING_PROFILE') not in profiles:errors.append('MEF_ROUTING_PROFILE: choose '+', '.join(profiles))
     if e('ENTRA_MODE') not in ['create','existing']:errors.append('MEF_ENTRA_MODE: choose create or existing')
-    for name in ['INSTALL_CONTROLLER','INSTALL_PLANTUML','VERIFY_HTTPS']:
+    for name in ['INSTALL_CONTROLLER','INSTALL_PLANTUML','VERIFY_HTTPS','INSTALL_PLUGINS']:
         if e(name) not in ['true','false']:errors.append('MEF_'+name+': choose true or false')
     if e('SHARED_ACCESS_MODE') not in ['ReadWriteMany','ReadWriteOnce']:errors.append('MEF_SHARED_ACCESS_MODE: choose ReadWriteMany or ReadWriteOnce')
     if e('SHARED_ACCESS_MODE')=='ReadWriteOnce' and not e('NODE_NAME'):errors.append('MEF_NODE_NAME: required to keep all shared-volume consumers on one node with ReadWriteOnce')
@@ -180,6 +193,20 @@ elif action in ['bind','target-check']:
     if action=='target-check':sys.exit(0)
     state.setdefault('installationId',str(uuid.uuid4()));state.update(clusterUID=uid,namespace=e('NAMESPACE'),domain=e('DOMAIN'));save(statefile,state)
 elif action=='migration-done':state['migrationComplete']=True;save(statefile,state)
+elif action=='entra-verify':
+    app=read(work/'entra.json') if e('ENTRA_MODE')=='create' else {'clientId':e('ENTRA_CLIENT_ID'),'clientSecret':e('ENTRA_CLIENT_SECRET')}
+    connection=http.client.HTTPSConnection('login.microsoftonline.com',context=ssl.create_default_context(),timeout=60)
+    body=urllib.parse.urlencode({'client_id':app['clientId'],'client_secret':app['clientSecret'],
+        'grant_type':'client_credentials','scope':'https://graph.microsoft.com/.default'})
+    try:
+        connection.request('POST','/'+e('ENTRA_TENANT_ID')+'/oauth2/v2.0/token',body=body,headers={'Content-Type':'application/x-www-form-urlencoded'})
+        response=connection.getresponse();payload=json.loads(response.read())
+        if response.status!=200 or not payload.get('access_token'):
+            stop('Entra rejected this App Registration credential. Check tenant/client IDs and the unexpired client secret VALUE (not Secret ID); no token or credential was printed.')
+    except (OSError,ValueError,http.client.HTTPException):stop('Cannot verify the Entra credential over HTTPS. Check Microsoft connectivity and trusted system CAs.')
+    finally:connection.close()
+    # This token only verifies the credential; user registration uses a delegated Microsoft identity.
+    print('Entra App Registration credential: OK')
 elif action=='entra':
     if e('ENTRA_MODE')=='existing':sys.exit(0)
     path=work/'entra.json';app=read(path)
@@ -288,6 +315,197 @@ elif action=='render':
             doc['metadata']['annotations']={'mef.dev/installation-id':state['installationId']}
             save(work/'networking/gatewayclass.yaml',doc)
     print('Generated complete values and separate Secrets in .local/installer (private file permissions).')
+elif action in ['packages-check','identity-check','plugins']:
+    # All plugin operations use the same explicitly selected cluster and namespace.
+    k=['kubectl','--context',e('KUBE_CONTEXT'),'--namespace',e('NAMESPACE')]
+    def run(args,body=None,timeout=120):
+        try:p=subprocess.run(args,input=body,capture_output=True,timeout=timeout)
+        except subprocess.TimeoutExpired:stop('Operation timed out: '+args[0]+'. Existing data was preserved; rerun to resume.')
+        if p.returncode:stop('Operation failed: '+args[0]+'. Inspect this installation; credential-bearing output was suppressed.')
+        return p.stdout
+    folder=root/'deployment-packages'
+    try:
+        manifest=json.loads((folder/'manifest.json').read_text())
+        artifacts=manifest['Artifacts']
+        if not isinstance(manifest.get('BundleVersion'),str) or not manifest['BundleVersion'].strip() or not isinstance(artifacts,list) or not artifacts:raise ValueError()
+        names=set();paths=set();enabled=[];files={}
+        for item in artifacts:
+            name,alias,filename=item['Name'],item['Namespace'],item['Path']
+            if not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_.-]*',name) or not re.fullmatch(r'[a-z][a-z0-9-]*',alias):raise ValueError()
+            if not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_.-]*\.zip',filename) or name.casefold() in names or filename.casefold() in paths:raise ValueError()
+            if not isinstance(item.get('Enable',True),bool):raise ValueError()
+            names.add(name.casefold());paths.add(filename.casefold())
+            package=folder/filename
+            if package.is_symlink() or not package.is_file():raise ValueError()
+            with zipfile.ZipFile(package) as archive:
+                if not archive.infolist() or archive.testzip() is not None:raise ValueError()
+                for entry in archive.infolist():
+                    path=entry.filename.replace('\\','/')
+                    if path.startswith('/') or '..' in path.split('/') or ':' in path or stat.S_ISLNK(entry.external_attr>>16):raise ValueError()
+            files[filename]=hashlib.sha256(package.read_bytes()).hexdigest()
+            if item.get('Enable',True):enabled.append(item)
+        if not enabled:raise ValueError()
+        files['manifest.json']=hashlib.sha256((folder/'manifest.json').read_bytes()).hexdigest()
+    except (OSError,ValueError,KeyError,TypeError,RuntimeError,zipfile.BadZipFile):
+        stop('Invalid deployment-packages: supply a BundleVersion, unique Name/Namespace/Path entries, at least one enabled artifact, and valid ZIPs with safe relative paths.')
+    fingerprint=hashlib.sha256(json.dumps(files,sort_keys=True).encode()).hexdigest()
+    if state.get('pluginBundleHash') and state['pluginBundleHash']!=fingerprint:
+        stop('The installed plugin bundle differs from deployment-packages. Automatic package upgrades are blocked; use the application publishing workflow for a reviewed upgrade.')
+    if state.get('setupEmail') and state['setupEmail'].casefold()!=e('SETUP_EMAIL').casefold():
+        stop('MEF_SETUP_EMAIL differs from the saved installation owner. Assign additional users in Apps; do not replace the bootstrap owner.')
+    if state.get('platformSetupStarted') or state.get('pluginBundleHash'):
+        saved_root=read(work/'root-credentials.json')
+        saved_access=read(work/'plugin-access.json')
+        if not saved_root.get('password') or saved_root.get('userName')!='root' or not saved_access.get('userId'):
+            stop('Saved plugin/root credentials are missing or incomplete. Restore .local/installer from backup; credentials must not be regenerated for an existing platform.')
+    if action=='packages-check':
+        print('Plugin manifest, ZIP integrity and saved bundle identity: OK');sys.exit(0)
+    def request(host,method,path,body=None,token=None,cookie=None):
+        context=ssl.create_default_context()
+        if e('HTTPS_CA_FILE'):context.load_verify_locations(cafile=e('HTTPS_CA_FILE'))
+        conn=http.client.HTTPSConnection(host,context=context,timeout=300)
+        headers={'Content-Type':'application/json','Accept':'application/json'}
+        if token:headers['Authorization']='Bearer '+token
+        if cookie:headers['Cookie']='external_access_token='+cookie
+        try:
+            conn.request(method,path,body=json.dumps(body).encode() if body is not None else None,headers=headers)
+            response=conn.getresponse();raw=response.read();code=response.status
+            try:result=json.loads(raw) if raw else None
+            except ValueError:result=None
+            return code,result
+        except (OSError,http.client.HTTPException):stop('HTTPS request failed for '+host+'. Check DNS, trusted CA and routing; no TLS verification was disabled.')
+        finally:conn.close()
+    host='api.'+e('DOMAIN')
+    def checked(method,path,body=None,token=None,cookie=None):
+        status,obj=request(host,method,path,body,token,cookie)
+        if status!=200:stop(method+' '+path+' returned HTTP '+str(status)+'. Inspect API logs; response content was suppressed to protect credentials.')
+        return obj
+    def identity():
+        account=json.loads(run(['az','account','show','--output','json','--only-show-errors']))
+        if account.get('tenantId')!=e('ENTRA_TENANT_ID'):stop('Azure CLI is using another tenant. Sign in with the configured tenant.')
+        result=json.loads(run(['az','account','get-access-token','--resource-type','ms-graph','--output','json','--only-show-errors']))
+        delegated=result['accessToken']
+        status,profile=request('graph.microsoft.com','GET','/v1.0/me?$select=id,mail,userPrincipalName,givenName,surname',token=delegated)
+        if status!=200 or not isinstance(profile,dict) or not profile.get('id'):stop('A delegated Microsoft user login with Graph profile access is required; service-principal login cannot bootstrap an MEF user. Run az login --tenant YOUR_TENANT_ID --allow-no-subscriptions.')
+        if e('SETUP_EMAIL').casefold() not in [str(profile.get(n) or '').casefold() for n in ['mail','userPrincipalName']]:
+            stop('The Microsoft account differs from MEF_SETUP_EMAIL. Sign in as the intended installation owner.')
+        return delegated,profile
+    if action=='identity-check':
+        identity();print('Delegated Microsoft identity and installation owner: OK');sys.exit(0)
+    # Persist root credentials before the first setup POST, so interrupted imports can resume.
+    credentials_path=work/'root-credentials.json'
+    credentials=read(credentials_path)
+    access=read(work/'plugin-access.json')
+    user_token=None
+    if access:
+        if access.get('bundleHash')!=fingerprint or access.get('email','').casefold()!=e('SETUP_EMAIL').casefold():stop('Saved plugin access state does not match this bundle/owner.')
+        user_id=access['userId'];tenant_id=access['tenantId']
+    else:
+        delegated,profile=identity()
+        status,session=request(host,'POST','/api/v0/auth/verify/EntraId',{},cookie=delegated)
+        if status==404 and isinstance(session,dict) and session.get('id'):
+            registration=read(work/'registration.json')
+            if not registration:
+                registration={'firstName':profile.get('givenName') or 'Administrator','lastName':profile.get('surname') or '',
+                    'email':session.get('email') or profile.get('mail') or profile['userPrincipalName'],
+                    'pin':str(secrets.randbelow(900000)+100000),'provider':3}
+                registration['pinConfirm']=registration['pin'];save(work/'registration.json',registration)
+            session=checked('POST','/api/v0/auth/register',registration,cookie=delegated)
+        elif status!=200:stop('Microsoft identity verification failed with HTTP '+str(status)+'. Inspect registration/tenant policy before retrying.')
+        if not isinstance(session,dict) or not session.get('accessToken'):stop('MEF did not issue an authenticated tenant session. Complete account approval before retrying.')
+        user_token=session['accessToken']
+        claims=json.loads(base64.urlsafe_b64decode(user_token.split('.')[1]+'==='))
+        user_id=claims['userId'];tenant_id=int(claims['tenantId'])
+        access={'email':e('SETUP_EMAIL'),'userId':user_id,'tenantId':tenant_id,'bundleHash':fingerprint}
+        # This checkpoint does not claim setup/import success.
+        save(work/'plugin-access.json',access)
+    if not credentials:
+        credentials={'userName':'root','password':'Mef!42_'+secrets.token_urlsafe(32),'currentTenant':tenant_id}
+        save(credentials_path,credentials)
+    if credentials.get('currentTenant')!=tenant_id:stop('Saved root credentials belong to another MEF tenant.')
+    def root_login():return checked('POST','/api/v0/auth/login',credentials)['accessToken']
+    # Recover with the saved root after a partial setup, without bypassing authentication.
+    if user_token is None:
+        status,login=request(host,'POST','/api/v0/auth/login',credentials)
+        if status==200 and isinstance(login,dict) and login.get('accessToken'):admin_token=login['accessToken']
+        else:
+            delegated,profile=identity()
+            user_token=checked('POST','/api/v0/auth/verify/EntraId',{'currentTenant':tenant_id},cookie=delegated)['accessToken']
+            admin_token=user_token
+    else:
+        admin_token=user_token
+        if state.get('platformSetupStarted'):
+            status,login=request(host,'POST','/api/v0/auth/login',credentials)
+            if status==200 and isinstance(login,dict) and login.get('accessToken'):admin_token=login['accessToken']
+    # Copy archives atomically, then publish the manifest last; no shell interpolation of file contents.
+    storage=yaml.safe_load((work/'values/api.yaml').read_text())['config']['appsettings']['Settings']['StorageFolder']
+    bundle=storage.rstrip('/')+'/bundle'
+    for filename in [n for n in files if n!='manifest.json']+['manifest.json']:
+        data=(folder/filename).read_bytes();target=bundle+'/'+filename
+        digest=hashlib.sha256(data).hexdigest()
+        command='umask 0002; mkdir -p '+shlex.quote(bundle)+'; cat > '+shlex.quote(target+'.partial')+' && mv '+shlex.quote(target+'.partial')+' '+shlex.quote(target)
+        run(k+['exec','-i','deployment/api','--','sh','-ec',command],data,timeout=300)
+        actual=run(k+['exec','deployment/api','--','sha256sum',target]).decode().split()[0]
+        if actual!=digest:stop('Package checksum verification failed for '+filename)
+    if not state.get('pluginBundleHash'):
+        setup=checked('GET','/api/v0/auth/setup',token=admin_token)
+        if not setup.get('firstSetup') and not state.get('platformSetupStarted'):
+            stop('MEF was already configured outside this installer. Automatic setup overwrite is blocked; use the manual plugin publishing workflow.')
+        setup['root'].update(userName=credentials['userName'],password=credentials['password'],email=e('SETUP_EMAIL'))
+        setup['tenant'].update(name=e('ORGANIZATION_NAME'),domain=[e('SETUP_EMAIL').split('@')[1]])
+        settings=setup['appSettings']['settings']
+        settings['entityGenerator']={'enabled':True,'url':'http://servicehost:7000'}
+        settings['mail']={'sendMail':False,'smtpClient':{'host':''}}
+        # Do not opt in to a third-party email processor on the administrator's behalf.
+        setup['appSettings']['tasks']={'taskProducers':None}
+        setup['appSettings']['authOptions'].update(entraIdAuth=True,passwordAuth=True,multiTenant=False,googleAuth=False,linkedinAuth=False,idGovUaAuth=False)
+        actual=setup.get('manifest') or {}
+        if {(i['namespace'],i['name']) for i in actual.get('artifacts',[])}!={(i['Namespace'],i['Name']) for i in artifacts}:stop('API manifest differs from the staged bundle.')
+        setup['manifest']['artifacts']=[{'namespace':i['Namespace'],'name':i['Name'],'path':i['Path'],'enable':i.get('Enable',True)} for i in artifacts]
+        state['platformSetupStarted']=True;state['setupEmail']=e('SETUP_EMAIL');save(statefile,state)
+        if checked('POST','/api/v0/auth/setup',setup,token=admin_token) is not True:stop('MEF did not confirm platform setup and bundle import.')
+        state['pluginBundleHash']=fingerprint;save(statefile,state)
+    admin_token=root_login()
+    namespaces=[];page=0
+    while True:
+        result=checked('GET',f'/api/v0/namespaces?page={page}&pagesize=100',token=admin_token)
+        items=result['items'];namespaces.extend(items)
+        if len(items)<100:break
+        page+=1
+    for item in enabled:
+        matches=[n for n in namespaces if n['alias']==item['Namespace']]
+        if len(matches)!=1:stop('Expected exactly one imported namespace: '+item['Namespace'])
+        namespace_id=matches[0]['id']
+        detail=checked('GET',f'/api/v0/namespaces/{namespace_id}',token=admin_token)
+        services=[s for s in detail['services'] if s.get('pluginName')==item['Name']]
+        if len(services)!=1:stop('Imported service missing or ambiguous: '+item['Name'])
+        checked('POST',f'/api/v0/namespaces/{namespace_id}/request',token=admin_token)
+        checked('POST',f'/api/v0/namespaces/{namespace_id}/user/{services[0]["serviceId"]}',{'userId':user_id,'assigned':True},token=admin_token)
+    # Obtain a fresh owner session only when needed for end-user access verification.
+    delegated,profile=identity()
+    user_session=checked('POST','/api/v0/auth/verify/EntraId',{'currentTenant':tenant_id},cookie=delegated)
+    user_token=user_session['accessToken']
+    configs=checked('GET','/api/v0/services/config',token=user_token)
+    if not isinstance(configs,list):stop('Unexpected service configuration response.')
+    for item in enabled:
+        if not any(c.get('alias')==item['Namespace'] and item['Name'] in [c.get('pluginUIName'),c.get('pluginUiName'),c.get('pluginMefName')] for c in configs):stop('The Microsoft user cannot access '+item['Name'])
+    if any(i['Name']=='bpmn-designer' and i['Namespace']=='bpmn' for i in enabled):
+        profile=checked('GET','/api/v2/plugins/bpmn/bpmn-designer/ui-profile',token=user_token)
+        if not isinstance(profile,dict) or not profile:stop('BPMN did not return its UI profile.')
+    if any(i['Name']=='ProductCatalogAI' and i['Namespace']=='ai' for i in enabled):
+        # Loading the backend applies its own EF migrations and exercises the real Secret-backed connection.
+        threads=checked('GET','/api/v2/ai/threads/list?page=1&pageSize=1',token=user_token)
+        if not isinstance(threads,dict) or not isinstance(threads.get('items'),list):stop('ProductCatalogAI did not return its PostgreSQL-backed thread list.')
+    query="SELECT extversion FROM pg_extension WHERE extname='vector';"
+    version=run(k+['exec','statefulset/pgvector','--','sh','-ec','psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -At -v ON_ERROR_STOP=1 -c '+shlex.quote(query)]).decode().strip()
+    if not version:stop('The vector extension is missing from the application PostgreSQL database.')
+    query="SELECT '[1,2,3]'::vector <-> '[1,2,4]'::vector;"
+    distance=run(k+['exec','statefulset/pgvector','--','sh','-ec','psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -At -v ON_ERROR_STOP=1 -c '+shlex.quote(query)]).decode().strip()
+    if distance!='1':stop('PostgreSQL vector distance verification failed.')
+    state['pluginAccessComplete']=True;save(statefile,state)
+    print('Bundle files verified; plugins imported; owner access and pgvector '+version+' verified.')
+    print('Emergency root credentials: .local/installer/root-credentials.json (keep private).')
+
 elif action=='routing-check':
     command=['kubectl','--context',e('KUBE_CONTEXT'),'--namespace',e('NAMESPACE'),'--request-timeout=15s']
     names=['api','apps','servicehost','knowledge-graph','mef-https-redirect']
@@ -320,6 +538,7 @@ PYTHON
 STEP='configuration validation'
 helper validate
 helper passwords-check
+if [[ $MEF_INSTALL_PLUGINS == true ]]; then helper packages-check; fi
 for suffix in apps api servicehost knowledge-graph; do
   openssl x509 -in "$MEF_TLS_CERT_FILE" -noout -checkhost "$suffix.$MEF_DOMAIN" >/dev/null 2>&1 || die "TLS certificate does not cover $suffix.$MEF_DOMAIN."
 done
@@ -402,11 +621,20 @@ if [[ $MODE != render ]]; then
       "${K[@]}" get crd middlewares.traefik.io >/dev/null || die 'Existing Traefik must have its Middleware CRD and Kubernetes CRD provider enabled.'
     fi
   fi
+  if [[ $MEF_INSTALL_PLUGINS == true ]]; then
+    command -v az >/dev/null || die 'Install Azure CLI for the initial Microsoft user registration.'
+    if ! az account show --query tenantId -o tsv --only-show-errors >/dev/null 2>&1; then
+      [[ $MODE == deploy ]] || die "Run az login --tenant $MEF_ENTRA_TENANT_ID --allow-no-subscriptions."
+      az login --tenant "$MEF_ENTRA_TENANT_ID" --allow-no-subscriptions --output none
+    fi
+    helper identity-check
+  fi
   if [[ $MEF_ENTRA_MODE == create ]]; then
     command -v az >/dev/null || die 'Install Azure CLI, or select MEF_ENTRA_MODE=existing and fill its client ID/secret.'
     tenant=$(az account show --query tenantId -o tsv --only-show-errors 2>/dev/null) || die "Run az login --tenant $MEF_ENTRA_TENANT_ID --allow-no-subscriptions, then rerun."
     [[ $tenant == "$MEF_ENTRA_TENANT_ID" ]] || die 'Azure CLI is logged into another tenant; use az login --tenant with the configured tenant ID.'
   fi
+  if [[ $MEF_ENTRA_MODE == existing ]]; then helper entra-verify; fi
   if [[ $MODE == check ]]; then say 'Preflight passed. No remote resources were changed. Storage capabilities still depend on your CSI backend.'; exit 0; fi
 else
   KUBE_VERSION=1.35.0
@@ -417,6 +645,7 @@ if [[ $MODE == deploy ]]; then
   helper passwords-init
   helper bind "$CLUSTER_UID"
   helper entra
+  if [[ $MEF_ENTRA_MODE == create ]]; then helper entra-verify; fi
 fi
 helper render
 components=(storage pgvector mssql db-update api servicehost knowledge-graph apps)
@@ -505,13 +734,20 @@ if [[ $MEF_VERIFY_HTTPS == true ]]; then
   ca=()
   [[ -z $MEF_HTTPS_CA_FILE ]] || ca=(--cacert "$MEF_HTTPS_CA_FILE")
   for endpoint in "https://api.$MEF_DOMAIN/api/v0/live" "https://apps.$MEF_DOMAIN/" "https://knowledge-graph.$MEF_DOMAIN/"; do
-    status=$(curl --silent --show-error --fail --connect-timeout 10 --max-time 30 "${ca[@]}" --output /dev/null --write-out '%{http_code}' "$endpoint") || die "HTTPS verification failed for $endpoint. Check DNS, load balancer and TLS; then rerun."
+    status=$(curl --silent --show-error --fail --retry 10 --retry-delay 2 --retry-max-time 60 --connect-timeout 10 --max-time 30 "${ca[@]}" --output /dev/null --write-out '%{http_code}' "$endpoint") || die "HTTPS verification failed for $endpoint. Check DNS, load balancer and TLS; then rerun."
     [[ $status == 200 ]] || die "Expected HTTP 200 from $endpoint; received $status. Check routing before continuing."
   done
   say 'Installation and HTTPS checks passed.'
 else
   say 'Cluster installation is ready. External DNS/TLS/HTTPS verification is PENDING (MEF_VERIFY_HTTPS=false).'
 fi
+if [[ $MEF_INSTALL_PLUGINS == true ]]; then
+  STEP='plugin installation and access'
+  helper plugins
+  say 'Plugins installed; PostgreSQL storage and Microsoft user access verified.'
+  printf 'Sign in with the configured Microsoft account. Plugin access is ready.\n'
+else
+  printf 'Complete initial account/platform setup in the browser. Plugins were explicitly disabled.\n'
+fi
 printf 'Open https://apps.%s/login and choose Microsoft.\n' "$MEF_DOMAIN"
-printf 'Complete the initial MEF account/platform setup in the browser. Tenant admin consent may be required.\n'
 printf 'Keep .local/installer and your config securely for recovery and repeat runs.\n'
