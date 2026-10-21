@@ -1,5 +1,5 @@
 {
-  "BundleVersion": "2.2.6.21",
+  "BundleVersion": "2.6.27.7",
   "Artifacts": [
     {
       "Namespace": "bpmn",
@@ -11,6 +11,78 @@
       "Namespace": "ai",
       "Name": "ProductCatalogAI",
       "Path": "ProductCatalogAI.zip",
+      "Enable": true
+    },
+    {
+      "Namespace": "ai",
+      "Name": "StateManager",
+      "Path": "StateManager.zip",
+      "Enable": true
+    },
+    {
+      "Namespace": "agent",
+      "Name": "ChatAgentsDocParse",
+      "Path": "ChatAgentsDocParse.zip",
+      "Enable": true
+    },
+    {
+      "Namespace": "ai",
+      "Name": "ai-llm-ui",
+      "Path": "ai-llm-ui.zip",
+      "Enable": true
+    },
+    {
+      "Namespace": "ai",
+      "Name": "AIChatBotApi",
+      "Path": "AIChatBotApi.zip",
+      "Enable": true
+    },
+    {
+      "Namespace": "ai",
+      "Name": "LargeLanguageModel",
+      "Path": "LargeLanguageModel.zip",
+      "Enable": true
+    },
+    {
+      "Namespace": "ai",
+      "Name": "ai-chat-ui",
+      "Path": "ai-chat-ui.zip",
+      "Enable": true
+    },
+    {
+      "Namespace": "fabric",
+      "Name": "agent-fabric-ui-agents",
+      "Path": "agent-fabric-ui-agents.zip",
+      "Enable": true
+    },
+    {
+      "Namespace": "fabric",
+      "Name": "AgentManagement",
+      "Path": "AgentManagement.zip",
+      "Enable": true
+    },
+    {
+      "Namespace": "ai",
+      "Name": "KnowledgeGraph.Plugin",
+      "Path": "KnowledgeGraph.Plugin.zip",
+      "Enable": true
+    },
+    {
+      "Namespace": "product-catalog-ai",
+      "Name": "OfferingAI.Mcp",
+      "Path": "OfferingAI.Mcp.zip",
+      "Enable": true
+    },
+    {
+      "Namespace": "ai",
+      "Name": "PipelineInsight",
+      "Path": "PipelineInsight.zip",
+      "Enable": true
+    },
+    {
+      "Namespace": "fabric",
+      "Name": "TrustedFlowSecurity",
+      "Path": "TrustedFlowSecurity.zip",
       "Enable": true
     }
   ]
