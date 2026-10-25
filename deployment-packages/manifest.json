@@ -74,7 +74,7 @@
       "Enable": true
     },
     {
-      "Namespace": "ai",
+      "Namespace": "agent",
       "Name": "PipelineInsight",
       "Path": "PipelineInsight.zip",
       "Enable": true

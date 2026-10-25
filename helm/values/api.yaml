@@ -48,6 +48,53 @@ env:
       secretKeyRef:
         name: api-secrets
         key: pgvector
+  # Plugin database bindings must be present before bundle import.
+  StateManager__Connection:
+    valueFrom:
+      secretKeyRef:
+        name: api-secrets
+        key: pgvector
+  AgentManagement__Connection:
+    valueFrom:
+      secretKeyRef:
+        name: api-secrets
+        key: pgvector
+  PipelineInsight__Connection:
+    valueFrom:
+      secretKeyRef:
+        name: api-secrets
+        key: pgvector
+  TrustedFlowSecurity__Connection:
+    valueFrom:
+      secretKeyRef:
+        name: api-secrets
+        key: pgvector
+  LargeLanguageModel__ConnectionStrings__ai:
+    valueFrom:
+      secretKeyRef:
+        name: api-secrets
+        key: pgvector
+  LargeLanguageModel__ConnectionStrings__pgvector:
+    valueFrom:
+      secretKeyRef:
+        name: api-secrets
+        key: pgvector
+  AIChatBotApi__Platform__BaseUrl: https://api.example.com
+  CHAT_CONNECTORS__PLATFORM_BASEURL: https://api.example.com
+  AIChatBotApi__DocParse__Agents__docparse: https://api.example.com/api/v2/agent/docparse
+  AIChatBotApi__Connectors__Files: platform
+  AIChatBotApi__Models__Default: gpt-5-mini
+  AIChatBotApi__ServiceLlm__Default: gpt-5-mini
+  OfferingAI_Mcp__StorageAlias: ai
+  OfferingAI_Mcp__Model: gpt-5-mini
+  ai_chat_ui__assistantApiUrl: https://api.example.com/api/v2/ai/assistant
+  # Read the documentation graph from this installation; enable vector indexing separately.
+  KnowledgeGraph_Plugin__KgV2ContentMode: web
+  KnowledgeGraph_Plugin__KgV2Grounder: lexical
+  KnowledgeGraph_Plugin__KgV2EntryPoints__0__url: http://knowledge-graph/.well-known/void
+  KnowledgeGraph_Plugin__KgV2EntryPoints__0__index: 'false'
+  KnowledgeGraph_Plugin__KgV2EntryPoints__1__url: ''
+  KnowledgeGraph_Plugin__KgV2EntryPoints__2__url: ''
   # Required Microsoft sign-in credential; fill the separate Secret before installation.
   AuthOptions__EntraId__ClientSecret:
     valueFrom:

@@ -10,7 +10,8 @@
 
 Deploy the web frontend, API, Servicehost, Knowledge Graph, SQL Server and PostgreSQL
 with pgvector. Microsoft Entra ID is the primary sign-in method. The supplied bundle
-adds BPMN Designer and the ProductCatalogAI backend.
+adds 14 plugins for BPMN, conversations, models, Assistant, document parsing, agent
+management, pipelines, trusted interactions and tariff packages.
 
 ## Choose your installation path
 
@@ -21,7 +22,7 @@ adds BPMN Designer and the ProductCatalogAI backend.
 | How you deploy | One `./install.sh` run | Explicit `helm upgrade --install` commands |
 | Entra registration | Created by the script, or an existing prepared registration | Prepared by the administrator |
 | Initial MEF account, setup and plugins | Configured by the script for `MEF_SETUP_EMAIL` | Completed in Apps after staging the plugin bundle |
-| Access assignment | Script grants the configured Microsoft user access | Administrator enables namespaces and assigns users |
+| Plugin categories and access | Script approves System plugins and assigns the configured Microsoft user | Administrator approves categories, enables namespaces and assigns users |
 | Azure CLI | Required for the default script path | Not required for the manual browser/Helm path |
 
 Choose **one** path for the initial installation. Both deploy the same Helm charts,
@@ -60,7 +61,8 @@ k8s/
 ├── deployment-packages/ # Plugin manifest and ZIP packages
 │   ├── manifest.json
 │   ├── BPMN.zip
-│   └── ProductCatalogAI.zip
+│   ├── ProductCatalogAI.zip
+│   └── …
 └── helm/
     ├── charts/          # Component Helm charts
     └── values/          # One complete YAML file per component
@@ -186,6 +188,9 @@ This directory is ignored by Git; credentials belong here, not in `install.sh`.
 | `MEF_SETUP_EMAIL` | Mail address or UPN of the Microsoft user who will own this installation and receive plugin access |
 | `MEF_ORGANIZATION_NAME` | Display name of the new MEF organization |
 
+Optional: set `MEF_MODEL_NAME` to your model name (default `gpt-5-mini`).
+To use AI features, configure your model provider in **Model Console** after installation.
+
 <details>
 <summary><strong>Example: configuration for your own cluster</strong></summary>
 
@@ -264,7 +269,7 @@ before changing remote resources.
 If a required field is empty or invalid, the installer stops and lists every field
 that needs attention, with a hint about where to obtain the value. `--check` verifies
 the certificate, target cluster, storage classes, delegated Microsoft identity,
-manifest and ZIP integrity without changing remote resources. Existing registration
+manifest, ZIP integrity and Helm rendering without changing remote resources. Existing registration
 credentials are checked against Entra before deployment; newly created credentials
 are checked immediately after creation. It cannot guarantee CSI RWX support or preapprove tenant consent.
 
@@ -276,46 +281,36 @@ ERROR: Fill or correct these fields in your local configuration:
   - MEF_TLS_CERT_FILE: path to a PEM certificate/full chain covering ...
 ```
 
-For a filled configuration, the installation performs:
-
-1. Create or reuse your Entra registration and configure the same tenant/client ID in API and Apps.
-2. Generate and retain database/bootstrap passwords; prepare matching application Secrets.
-3. Install the selected routing controller, or use your existing one.
-4. Create shared PVCs, install databases and complete the initial migration.
-5. Install API, Servicehost, Knowledge Graph and Apps; optionally install PlantUML.
-6. Wait for readiness and routing, then check the external HTTPS endpoints with certificate validation.
-7. Copy the ZIPs to the shared `front` PVC and publish `bundle/manifest.json` after their checksums match.
-8. Verify the configured Microsoft identity, register its MEF account if needed, create the emergency root account and complete platform setup through the MEF API.
-9. Import enabled plugins, assign their namespaces and services to that Microsoft user, and verify BPMN access and the ProductCatalogAI PostgreSQL connection.
+The installer configures Entra ID, Secrets, storage and routing, deploys the Helm
+releases, imports the enabled plugins from `deployment-packages/` and grants access
+to `MEF_SETUP_EMAIL`. It checks readiness and plugin endpoints before finishing.
 
 Expected final result:
 
 ```text
-==> Plugins installed; PostgreSQL storage and Microsoft user access verified.
+==> Plugin installation checks passed; Microsoft user access is ready.
 Open https://apps.platform.company.com/login and choose Microsoft.
 ```
 
 ### A4. Sign in and confirm access
 
 **OK:** the script exits successfully, Pods/PVCs and HTTPS are ready, the plugin API
-checks pass, and the configured Microsoft user can open BPMN from Applications.
+checks pass, and the configured Microsoft user can open the installed UI applications.
+Follow [step 8](#8-verify-the-complete-installation) to confirm access and finish setup.
 Sign in to Apps with that Microsoft account. Initial registration and platform setup
 have already been completed; there is no need to repeat the wizard. The normal Apps
 login uses your installation's App Registration. Tenant consent and MFA remain under
 your Microsoft tenant policy; the installer does not bypass them.
 
-The initial identity check uses Azure CLI's delegated Graph session and MEF's external
-sign-in API. It does not use application-only credentials to impersonate a user.
-The installer grants access only to `MEF_SETUP_EMAIL`; additional users need their own
-MEF registration and explicit plugin permissions. It does not make the Microsoft user
-`root`. The emergency password is generated locally in
-`.local/installer/root-credentials.json`; the registration PIN is in
-`.local/installer/registration.json` when a new account is registered. Neither is printed. Store both securely.
+The installer grants plugin access to `MEF_SETUP_EMAIL`. Additional users need their
+own registration and permissions. Emergency root credentials are saved in
+`.local/installer/root-credentials.json`; a new account's registration PIN is saved
+in `.local/installer/registration.json`. Store these files securely.
 
 SMTP is left disabled. Configure your own sender/provider in Apps when needed;
 automatic installation does not accept terms for a third-party email processor.
 
-Continue with [the final application checks](#8-verify-the-complete-installation).
+Continue with [the final setup check](#8-verify-the-complete-installation).
 Steps 1–7 of the manual path have already been performed by the script.
 
 ### Routing and storage choices
@@ -347,6 +342,9 @@ on that node, without multi-node RWX availability. Multi-node installs should re
 
 Run `./install.sh` again with the same configuration after correcting a failure.
 The installer retains passwords and refuses to take over an unrelated namespace.
+After an interrupted platform setup, it checks the existing import before resuming;
+an uncertain or partial import requires inspection in Apps. Changes to storage,
+routing or Entra identity require the manual workflow.
 A migration with Helm status `deployed` is not rerun, including after its Job TTL expires.
 If local state records a completed migration but its Helm release is missing, the
 installer stops for manual inspection instead of replaying SQL changes. Missing or
@@ -361,6 +359,15 @@ until a normal deployment creates the registration. Generated complete values ar
 `.local/installer/values/`, Secrets in `.local/installer/secrets/`; source values in
 `helm/values/` are unchanged. These are generated files: make installer choices in
 `install.env`, or switch to the manual workflow for advanced application customizations.
+
+To recheck installed plugin endpoints without redeploying:
+
+```bash
+./install.sh --verify-plugins
+```
+
+Use the same configuration, saved installer state and Azure CLI account.
+This check does not require Helm or the local TLS certificate/private key.
 
 Back up `.local/install.env` and `.local/installer/` securely. They contain database
 passwords, the Entra credential, emergency root credentials, registration PIN and installation identity. Losing those files does
@@ -392,7 +399,7 @@ This path performs the same deployment in eight explicit steps. It does not run
 | [5](#5-install-applications) | Install API, Servicehost, Knowledge Graph and Apps | Releases are deployed; Pods and PVCs are ready |
 | [6](#networking) | Connect one Ingress or Gateway profile | DNS, TLS and HTTPS work |
 | [7](#7-install-plugins-and-complete-platform-setup) | Stage packages, complete setup and assign access | The intended Microsoft user can access the plugins |
-| [8](#8-verify-the-complete-installation) | Verify the complete installation | BPMN and ProductCatalogAI operations succeed |
+| [8](#8-verify-the-complete-installation) | Confirm the installation | Microsoft sign-in works and assigned applications open |
 
 Keep the complete installation values in `helm/values/` and credentials in
 `.local/secrets/`. The `values.yaml` inside each chart is only a pointer: every Helm
@@ -462,6 +469,8 @@ Before applying resources, review these installation-specific settings:
 | Shared storage | `storage.yaml` → `claims.<name>.storageClass` and `size`; RWX support required |
 | Database storage | `persistence.storageClass`, capacity and any `existingClaim` |
 | Frontend API address | `apps.yaml` → `config.data.config.json` → `apiUrl` |
+| Plugin configuration | `api.yaml` → `env`: replace `api.example.com`; retain all PostgreSQL Secret bindings |
+| Model registry name | `AIChatBotApi__Models__Default`, `AIChatBotApi__ServiceLlm__Default`, `OfferingAI_Mcp__Model` must match the model you register |
 | API authentication | `api.yaml` → `config.appsettings.AuthOptions` |
 | Database access | Passwords and connection strings in the Secret files |
 | Background work | Servicehost task definitions, activation lists and integration credentials |
@@ -1231,18 +1240,24 @@ is a background service; its root URL is not a required public web page.
 <a id="verify-microsoft-sign-in"></a>
 ### 7. Install plugins and complete platform setup
 
-Finish this step after the applications are Ready and their public HTTPS routes work.
-Stage the bundle **before** saving the platform setup wizard so its Manifest step can
-list the packages. This section is for a new manual installation; a default script
-installation has already performed these actions.
+For a new manual installation, finish this section after HTTPS works. The default
+script path already performs it. Plugin configuration must be present in the API
+**before importing the bundle**.
 
-#### 7.1. Copy the bundle to the shared volume
+#### 7.1. Check configuration and stage the packages
 
-The supplied files are in [deployment-packages](deployment-packages/). Keep the ZIPs
-compressed. The API imports them from `/storage/ProdK8S/bundle/` on the shared `front`
-PVC; no separate plugin PVC is needed.
+In [API values](helm/values/api.yaml), replace `api.example.com` with your API
+hostname and retain the supplied PostgreSQL Secret bindings. The `pgvector` connection
+in `api-secrets` must use the same database credentials as `pgvector-auth`.
+Apply these settings **before importing the plugins**.
 
-Run from the repository root in the terminal prepared in step 1:
+Use the supplied [manifest.json](deployment-packages/manifest.json) to install all
+14 plugins by default. To install a subset, set `Enable: false` for unneeded packages
+before the first installation; retain their required dependencies. Keep namespaces
+and package names unchanged. The script checks dependencies automatically.
+
+Copy the ZIPs unchanged to the shared `front` PVC, then publish the manifest last.
+No separate plugin PVC is required. Run from the repository root:
 
 ```bash
 (
@@ -1258,194 +1273,88 @@ Run from the repository root in the terminal prepared in step 1:
       ' sh "$(basename -- "$package")" < "$package"
   done
 )
-```
 
-The archives are copied first and `manifest.json` last. A failed copy stops the block.
-Compare the checksums of the local files and the copies on the PVC:
-
-```bash
-sha256sum deployment-packages/BPMN.zip \
-  deployment-packages/ProductCatalogAI.zip deployment-packages/manifest.json
-
+sha256sum deployment-packages/*.zip deployment-packages/manifest.json
 kubectl --context "$KUBE_CONTEXT" --namespace mef-dev exec deployment/api -- \
-  sha256sum /storage/ProdK8S/bundle/BPMN.zip \
-  /storage/ProdK8S/bundle/ProductCatalogAI.zip /storage/ProdK8S/bundle/manifest.json
+  sh -ec 'cd /storage/ProdK8S/bundle; sha256sum -- *.zip manifest.json'
 ```
 
-**OK:** each filename has the same SHA-256 in both listings. The manifest names the
-ZIPs exactly, including case. See [the bundle format](#plugin-packages-and-repeat-runs)
-when changing the supplied package selection.
+**OK:** every staged filename has the same SHA-256 as its local file. Do not extract
+archives manually or copy them directly into plugin runtime directories.
 
-#### 7.2. Sign in with Microsoft and register the first account
+#### 7.2. Sign in with Microsoft
 
-Open `https://apps.example.com/login` using your configured Apps hostname. Choose
-**Microsoft**, complete sign-in/MFA and any consent required by your tenant, then
-complete the MEF registration screen. Store the registration PIN securely.
+Open `https://apps.example.com/login` using your Apps hostname. Choose **Microsoft**,
+complete sign-in/MFA and tenant consent, then complete MEF registration. Keep the
+registration PIN in your secret manager.
 
-Expected browser Network results:
+**OK:** Apps opens platform setup after registration.
 
-```text
-GET  /api/v0/auth/signin-entraid    302  → Apps auth callback
-POST /api/v0/auth/verify/EntraId    200
-GET  /api/v0/account/organizations  200
-```
+#### 7.3. Complete platform setup
 
-A first-time user can receive `404` from `verify/EntraId` before registration; after
-registration, a tenant session must be established. **OK:** Apps opens the platform
-setup wizard and protected API requests succeed.
-
-#### 7.3. Complete the platform setup wizard
-
-| Wizard step | What to configure |
+| Wizard step | Setting |
 | :--- | :--- |
-| **Root's Tenant** | Your organization name and its allowed email domains. Create a strong password for the local `root` administrator and store it in your secret manager. |
-| **ServiceHost connection** | Enable the connection and use `http://servicehost:7000`; this address is reached by API inside the cluster. |
-| **SMTP Settings** | Configure your own SMTP or select a mail option authorized by your organization. Accept a third-party provider's terms only if your organization chooses that service. |
-| **Access settings** | Keep Entra ID enabled and multi-tenant mode disabled for this single-company setup. Retain password login for the local administrator. Disable unused providers. |
-| **Manifest** | Enable `bpmn.bpmn-designer` and `ai.ProductCatalogAI`, or select the subset you intend to install. If the list is empty, check the bundle location and manifest before saving. |
-| **Check the settings** | Review the organization, connections, authentication and selected packages, then save and confirm setup. |
-| **Setup completed** | Finish the wizard and proceed to user access assignment. |
+| **Root's Tenant** | Organization name and allowed email domains; create and retain the local `root` password. |
+| **ServiceHost connection** | Enable `http://servicehost:7000`. API reaches it inside the cluster. |
+| **SMTP Settings** | Disable outgoing mail or configure your organization's authorized provider. |
+| **Access settings** | Entra ID enabled, multi-tenant disabled; retain password login for root and disable unused providers. |
+| **Manifest** | Confirm all intended packages from the manifest are listed and enabled. |
+| **Check the settings** | Review and save the configuration once. |
+| **Setup completed** | Continue to categories and access assignment. |
 
-The platform imports the selected packages during setup. Helm installs the platform;
-the MEF importer registers the plugins and their versions. Repeatedly reinstalling
-the API Helm release is not a plugin import procedure.
+Helm deploys the platform; MEF imports the plugin bundle. Reinstalling the API Helm
+release does not import a new plugin version.
 
-ProductCatalogAI uses `api-secrets/pgvector` through the supplied
-`ChatBot_Storage__Connection` binding in [API values](helm/values/api.yaml). Keep that
-binding and fill the Secret with the same PostgreSQL database/user/password used in
-step 3. Its application tables are created by the plugin on first backend use.
+#### 7.4. Approve categories and assign access
 
-#### 7.4. Give the Microsoft user access
+Sign in as the local **root** created during setup. Approve **LargeLanguageModel** and
+**TrustedFlowSecurity** as **System**, enable the installed namespaces for the
+organization, and assign the required services to the registered Microsoft user.
+Skip disabled plugins when installing a subset.
 
-Sign in to Apps using the **local root account created in the wizard**. Use the
-namespace/service access controls to enable the installed namespaces for your
-organization and assign the required services to the intended Microsoft user:
+Namespace in the table means a MEF plugin alias. Kubernetes resources remain in `mef-dev`.
 
-| Namespace | Service to assign | User |
+| Namespace | Service | Category |
 | :--- | :--- | :--- |
-| `bpmn` | `bpmn-designer` | The registered Microsoft user who will open BPMN Designer |
-| `ai` | `ProductCatalogAI` | The registered Microsoft user who will call its backend API |
+| `bpmn` | `bpmn-designer` | BSS |
+| `ai` | `ProductCatalogAI` (Conversations) | BSS |
+| `ai` | `StateManager` | BSS |
+| `agent` | `ChatAgentsDocParse` | BSS |
+| `ai` | `ai-llm-ui` (Model Console) | BSS |
+| `ai` | `AIChatBotApi` | BSS |
+| `ai` | `LargeLanguageModel` (Model Gateway) | **System** |
+| `ai` | `ai-chat-ui` (Assistant Console) | BSS |
+| `fabric` | `agent-fabric-ui-agents` (Fabric Console) | BSS |
+| `fabric` | `AgentManagement` | BSS |
+| `ai` | `KnowledgeGraph.Plugin` | BSS |
+| `product-catalog-ai` | `OfferingAI.Mcp` | BSS |
+| `agent` | `PipelineInsight` | BSS |
+| `fabric` | `TrustedFlowSecurity` | **System** |
 
-Organization availability and user assignment are separate actions. A published
-plugin alone does not give every user access. Additional users must first register
-through Microsoft and receive their own assignments; do not grant `root` merely to
-make an application visible.
+Organization availability and user assignment are separate. Additional users must
+register through Microsoft and receive their own assignments; do not grant root
+merely to make an application visible.
 
-<details>
-<summary><strong>API equivalents for administrators managing permissions directly</strong></summary>
-
-Use an authenticated API client with a root MEF session. Obtain that session through
-`POST /api/v0/auth/login` using the root credentials and, when needed, the selected
-MEF organization ID. This is the numeric MEF tenant ID, not the Entra Directory GUID.
-Use the returned `accessToken` as the Bearer credential without publishing the response.
-
-Discover IDs from this installation; do not assume namespace or service IDs are `1` or `2`.
-For paginated lists, inspect subsequent pages if the intended record is not on the first page.
-
-| Request | Purpose |
-| :--- | :--- |
-| `GET /api/v0/users?page=0&pagesize=100` | Find the registered user's ID and confirm its email. |
-| `GET /api/v0/namespaces?page=0&pagesize=100` | Find the namespace whose `alias` is `bpmn` or `ai`. |
-| `GET /api/v0/namespaces/{namespaceId}` | Find `services[].serviceId` by the exact `pluginName` from the table above. |
-| `POST /api/v0/namespaces/{namespaceId}/request` | Enable/request the namespace for the current organization. |
-| `POST /api/v0/namespaces/{namespaceId}/user/{serviceId}` | Assign the service to the intended user. |
-
-The last request body is:
-
-```json
-{
-  "userId": "REGISTERED_MEF_USER_ID",
-  "assigned": true
-}
-```
-
-Repeat the namespace request and user assignment for each required service. Verify
-HTTP 200 responses, then check access using the target user's Microsoft session.
-
-</details>
-
-Sign out of root and sign in with Microsoft. **OK:** the intended user sees the BPMN
-application and can open the modeler; ProductCatalogAI requests succeed under that
-user's session. The Microsoft user remains a normal user.
+Sign out of root and sign in with Microsoft. **OK:** **Applications** shows the
+assigned BPMN, Model, Assistant and Fabric applications.
 
 ### 8. Verify the complete installation
 
-Use this finish check for **either installation path**. For script installations,
-first load `.local/install.env` and set `KUBE_CONTEXT="$MEF_KUBE_CONTEXT"`; the commands
-below use the default namespace `mef-dev`.
+For either installation path, confirm:
 
-#### Save and execute a BPMN workflow
-
-1. Sign in with the Microsoft user who received plugin access and open **BPMN Designer**.
-2. Create a **Personal** library and a new flow using the supplied Hello world template.
-3. Save it as `hello-world`, reload the page and reopen the saved flow.
-4. Select **Build → Compile** and confirm compilation succeeds.
-5. Select **Build → Execute**, enter `{}` as input, then run it.
-
-Expected output from the supplied template:
-
-```json
-{
-  "marker": "Hello world",
-  "result": 42
-}
-```
-
-**OK:** the definition survives reloading and execution returns the expected result.
-A saved diagram or successful compile alone does not confirm execution.
-
-#### Verify ProductCatalogAI and PostgreSQL
-
-Using the assigned Microsoft user's MEF session in an authenticated API client, call:
-
-```http
-GET /api/v2/ai/threads/list?page=1&pageSize=1
-```
-
-**OK:** HTTP 200 with a JSON `items` array; the array may be empty on a new database.
-This loads the backend plugin and exercises its PostgreSQL connection. The pgvector
-extension was verified in step 3, or automatically by the script.
-
-Confirm the plugin's tables are present:
-
-```bash
-kubectl --context "$KUBE_CONTEXT" --namespace mef-dev exec -i pgvector-0 -- \
-  sh -ec 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1' <<'SQL'
-SELECT tablename
-FROM pg_catalog.pg_tables
-WHERE schemaname = 'public'
-  AND tablename IN (
-    'ChatThreads', 'ChatMessages', 'ChatTags',
-    '__EFMigrationsHistory_ProductCatalogAI'
-  )
-ORDER BY tablename;
-SQL
-```
-
-Expected rows:
-
-```text
-ChatMessages
-ChatTags
-ChatThreads
-__EFMigrationsHistory_ProductCatalogAI
-```
-
-#### Completion checklist
-
-| Area | Expected result |
+| Check | Expected result |
 | :--- | :--- |
-| Kubernetes | Application Pods are Ready and their Helm releases are deployed |
-| Persistent storage | `front`, `back`, `api-config`, `mssql` and `pgvector` are Bound |
-| SQL schema | Initial migration completed successfully |
-| DNS and TLS | Correct application hostnames; trusted HTTPS; API reachable from its own Pod |
-| Microsoft sign-in | The intended user can sign in and retain the session after a page reload |
-| BPMN | Saved flow reopens, compiles and returns the expected result |
-| ProductCatalogAI | Assigned user receives HTTP 200 and the PostgreSQL tables exist |
+| Kubernetes | Application Pods are Ready; all five PVCs are Bound |
+| Public access | Apps opens over trusted HTTPS; API `/api/v0/live` returns HTTP 200 |
+| Microsoft sign-in | The configured user can sign in and open **Applications** |
+| Plugins | All enabled plugins are imported (14 by default); the user can open the assigned UI applications |
 
-After these checks, continue to [operations](#operations) for updates, backups and
-credential rotation. Configure additional business integrations with their own
-accounts and endpoints as needed.
+For AI features, open **Model Console → Models**, add your provider's endpoint,
+credentials and model, then validate it. Use the model name selected in
+`MEF_MODEL_NAME` for script installations, or the matching model defaults in
+[API values](helm/values/api.yaml) for manual installations.
+
+Continue to [operations](#operations) for updates, backups and credential rotation.
 
 
 ---
@@ -1630,59 +1539,21 @@ Use these sections when adapting the installation to your environment.
 
 ### Plugin packages and repeat runs
 
-Keep these files together in [deployment-packages](deployment-packages/):
+[deployment-packages/manifest.json](deployment-packages/manifest.json) is the source
+of truth for bundle version, package names, namespaces and enabled artifacts. Keep
+all referenced ZIPs beside it. Set `Enable: false` before a new installation to omit
+a package; also disable any plugins that depend on it.
 
-```text
-deployment-packages/
-├── manifest.json
-├── BPMN.zip
-└── ProductCatalogAI.zip
-```
+The script imports the supplied bundle automatically. For the manual path, follow
+[step 7](#7-install-plugins-and-complete-platform-setup). Helm deploys the platform;
+Apps imports the plugins.
 
-The manifest defines which packages to import:
+Repeat `./install.sh` with the same configuration and saved `.local/installer/`
+directory to resume an installation. Unchanged bundles are not imported again.
+For a new plugin version, use the platform's publishing workflow.
 
-```json
-{
-  "BundleVersion": "2.2.6.21",
-  "Artifacts": [
-    {"Namespace": "bpmn", "Name": "bpmn-designer", "Path": "BPMN.zip", "Enable": true},
-    {"Namespace": "ai", "Name": "ProductCatalogAI", "Path": "ProductCatalogAI.zip", "Enable": true}
-  ]
-}
-```
-
-Before the first installation, set `Enable: false` to omit a package. The installer
-rejects missing/corrupt ZIPs, unsafe archive paths and duplicate plugin names.
-At least one artifact must be enabled when `MEF_INSTALL_PLUGINS=true`.
-Do not extract ZIPs manually: the MEF bundle importer handles metadata, versions and
-registration. The files are staged at API path `/storage/ProdK8S/bundle/` on `front`;
-BPMN UI files and backend assemblies are then installed by MEF on that same PVC.
-
-ProductCatalogAI uses the `ChatBot_Storage__Connection` environment variable declared
-in [API values](helm/values/api.yaml). Its value comes from `api-secrets`, key
-`pgvector`, and points to the installed PostgreSQL `mef` database. The prefix belongs
-to the package's storage provider. The plugin applies its EF schema migrations when
-first loaded. The installer calls its list endpoint as the Microsoft user and checks
-the `vector` extension and a vector-distance query; a Running Pod alone is insufficient.
-
-Run the same command to resume:
-
-```bash
-./install.sh
-```
-
-Unchanged bundles are not reimported, platform settings and credentials are preserved,
-and access assignments are reapplied and checked. An interrupted initial setup can
-resume using the saved root credentials. Keep `.local/installer/` intact. A different
-bundle checksum, a different bootstrap email, or an independently configured platform
-stops automatic setup instead of overwriting it. Use MEF's plugin publishing workflow
-for subsequent package upgrades. SMTP and other company integrations are configured
-separately in Apps.
-
-For the manual path, follow [step 7](#7-install-plugins-and-complete-platform-setup)
-for staging, the setup wizard and user access. Automatic setup is intended for new
-installations owned by the script.
-
+Plugin configuration is saved on import. If you change a plugin setting later,
+update its configuration in the platform; restarting API alone does not apply it.
 
 <a id="application-configuration"></a>
 ### Application configuration
@@ -1957,6 +1828,8 @@ Use your explicit kubeconfig/context and application namespace on each command.
 | PVC Pending | StorageClass, access mode, capacity and WaitForFirstConsumer scheduling |
 | Plugin setup cannot authenticate | Azure CLI must use a delegated user from the configured tenant matching `MEF_SETUP_EMAIL`; renew the Azure CLI user login if needed |
 | ProductCatalogAI cannot reach PostgreSQL | `ChatBot_Storage__Connection` must reference `api-secrets/pgvector`; inspect the plugin endpoint and PostgreSQL schema |
+| `requires CategoryType=System` | Approve LargeLanguageModel and TrustedFlowSecurity as System using root |
+| Assistant cannot connect | Its `assistantApiUrl` must be your API's `/api/v2/ai/assistant`, without placeholder hostnames |
 | Plugin import returns HTTP 409 | Verify that the API public hostname resolves and is reachable from its Pod; inspect API logs |
 | PostgreSQL lacks vector extension | Initialization runs once; create the extension in the correct existing database |
 | SQL auth fails after Secret change | Database password and bootstrap env password are distinct after initialization |
