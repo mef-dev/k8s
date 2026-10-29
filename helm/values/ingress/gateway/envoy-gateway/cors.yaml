@@ -20,4 +20,5 @@ spec:
     allowHeaders:
     - Authorization
     - Content-Type
+    - apikey
     allowCredentials: true

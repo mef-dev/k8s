@@ -16,6 +16,7 @@ spec:
     accessControlAllowHeaders:
     - Authorization
     - Content-Type
+    - apikey
     accessControlAllowCredentials: true
     accessControlMaxAge: 600
     addVaryHeader: true

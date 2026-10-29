@@ -19,5 +19,6 @@ gateway:
         allowHeaders:
         - Authorization
         - Content-Type
+        - apikey
         allowCredentials: true
         maxAge: 600
